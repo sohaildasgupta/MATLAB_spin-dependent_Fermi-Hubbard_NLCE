@@ -1,0 +1,270 @@
+% Performs the NLCE sum.
+% Calls NLCE_load to read the graphs and their corresponding coefficients.
+% Calls ED_NLCE to perform the ED on each graph.
+% Adds the properties together multiplying by the weight of each graph
+feature('numcores')
+t = 1; u = [10 10 10];
+m = 3;
+n = -1;
+dno = -1;
+order0 = 1:5;
+dmu = 1;
+mumax = -(m - 2.5);
+%shift the half-filling at mu=0
+mu = zeros(1,m);
+% for idx = 1:m
+%     for jdx = 1:m
+%         if idx ~= jdx
+%             s = min(idx,jdx);
+%             b = max(idx,jdx);
+%             mu(idx) = mu(idx) - 0.5 * u((s-1)*m - uint8(s*(s-1)/2) + b-s);
+%         end
+%     end
+% end
+% clear('b','s');
+
+muq = linspace(-12,40,50); % balanced mus. can be changed for unbalanced case.
+T = 2;
+mu_file = join(['NLCE_mat_files/N=',num2str(m),'/muq.csv']);
+T_file = join(['NLCE_mat_files/N=',num2str(m),'/T.csv']);
+writematrix(muq,mu_file);
+writematrix(T,T_file);
+
+rev_pair_idx = [1 2; 1 3; 2 3];
+
+
+plot_show=true;
+
+CTlist = zeros();
+%[side1, side2] = deal(1, 1);
+
+for order=order0   
+    % order=2; % Just for check
+    [g, coefficient] = NLCE_load(order);
+    for k = 1:numel(g)
+        % k=2; % for checking
+        key = key_gen(g{k});
+        l = numnodes(g{k});   
+        numEdge = numedges(g{k});
+        [side1, side2] = findedge(g{k}); %for nearest neighbor correlator
+        side1 = [side1' 1:l]; side2 = [side2' 1:l]; %on-site correlator
+        filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/' key],'');
+        filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'ED.mat'],' '); % name of file that saves the output
+        itemlist = {'density','density2','doubleoccupancy','fileio','correlator',side1,side2};
+        try
+            disp(['Try to find ED data for graph ', num2str(key), '...']);
+            % clear('output');
+            load(filename); % try to load result of the ED to one given graph
+            disp(timer_count);
+            disp(['ED data for graph ', num2str(key), ' found.']);
+        catch
+            disp(['ED data for graph ', num2str(key), ' not found. Start to calculate ED.']);
+                
+            [timer_count, spectra, nsigmapermute, testn, nimatrix, ni2matrix, domatrix, ninj] = ED_solver(g{k},t,u,n,m,dno,itemlist{:});
+             
+            disp(['ED calculation for graph ', num2str(key), ' finished.']);
+            disp(timer_count);
+        end
+        
+        disp(join([key, 'l=', l, "t=", double(t), "u=", double(u), "m=", m, "D=", dno, 'ED measurement start']));
+        disp(join(["Measured item :", itemlist{:}]));        
+        %nimatrix = 1 + zeros(length(nimatrix))
+        
+        try
+            nlce = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/" ,key],'');
+            nlce = join([nlce, " t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'LDA.mat'],' ');            load(nlce);
+            load(nlce);
+            if mulist~=muq || Tlist~=T %WARNING : This deletes previous data. Need a better check.
+                disp("mu-list do not match, deleting nlce graph data...");
+                delete(nlce);
+                load(nlce);
+            end
+        catch
+            alist = [];
+            for mu0 = muq 
+                deltamu = mu - mu0;
+                densityaccum = zeros(1,m);
+                density_sq_accum = zeros(1,m+1);
+                for spin_idx = 1:m
+                    rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
+                    rho2_matrix = cellfun(@(x) x{spin_idx},ni2matrix,'UniformOutput',false);
+                    densityaccum(spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix); 
+                    density_sq_accum(spin_idx) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn, rho2_matrix);
+                end
+                density_sq_accum(m+1) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn,cellfun(@(x) x{m+1},ni2matrix,'UniformOutput',false));
+                doaccum = zeros(1,uint8(m*(m-1)/2));
+                % onsite_cor_accum = zeros(1,uint8(m*(m-1)/2));
+                ninjaccum = zeros(1,uint8(m*(m-1)/2));
+                for pair_idx = 1:uint8(m*(m-1)/2)
+                    pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
+                    doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
+                    ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
+                    correlatoraccum = (LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix));
+                    niniaccum(pair_idx) = sum(correlatoraccum(numEdge+1:end)); %on-site
+                    if l>1
+                        ninjaccum(pair_idx) = sum(correlatoraccum(1:numEdge)) - 1/l^2*numEdge*densityaccum(rev_pair_idx(pair_idx,1))*densityaccum(rev_pair_idx(pair_idx,2)); %nearest-neighbor
+                    end
+                end
+                energyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'energy') + mu0*sum(densityaccum) ; 
+                energy_sq = LDA_measure(spectra ,deltamu, T, nsigmapermute, testn, 'energy_square');
+                cv_accum = 1/T^2*(energy_sq - energyaccum^2);
+                entropyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'entropy') ;
+               %cnnaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, cnn) ;
+               %ninjaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj);
+             %  CTlist(end + 1, :) = [T mu0 densityaccum doaccum energyaccum entropyaccum cnnaccum' ninjaccum'];
+                alist(end + 1, :) = [densityaccum(:)' density_sq_accum(:)' doaccum(:)' energyaccum entropyaccum cv_accum niniaccum(:)' ninjaccum(:)']; 
+            end
+        nlce = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/" ,key],'');
+        nlce = join([nlce, " t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'LDA.mat'],' ');
+        mulist = muq; %To ensure the correct mus are used
+        Tlist = T;
+        save(nlce,'alist','mulist','Tlist');
+        end
+        CTlist = CTlist + coefficient(k)*alist; %nlce sum
+        disp(join([key, 'l=', l, "t=", double(t), "u=", double(u), "m=", m, "D=", dno, 'ED measurement finish']));
+    end
+    for idx = 1:m
+        writematrix(CTlist(:, idx)', join(['../data/csv_files/density_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+        writematrix(1/T*(CTlist(:, m+idx))', join(['../data/csv_files/compressibility_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+    end
+    writematrix(CTlist(:, 2*m + 1)' - (sum(CTlist(:,1:m),2).^2)', join(['../data/csv_files/total_density_fluc_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+    for idx = 1:uint8(m*(m-1)/2)
+        connected = CTlist(:,rev_pair_idx(idx,1)).*CTlist(:,rev_pair_idx(idx,2));
+        writematrix(CTlist(:,2*m+1+idx)', join(['../data/csv_files/doublon_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));            
+        writematrix(CTlist(:,2*m+1+uint8(m*(m-1)/2)+3+idx)'-connected', join(['../data/csv_files/nini_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));            
+        if order == 1
+            connected = 0;
+        end
+        writematrix(CTlist(:,2*m+1+2*uint8(m*(m-1)/2)+3+idx)', join(['../data/csv_files/ninj_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+    end
+    writematrix(CTlist(:,2*m+1+ uint8(m*(m-1)/2) + 2)', join(['../data/csv_files/entropy_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+    writematrix(CTlist(:,2*m+1+ uint8(m*(m-1)/2) + 3)', join(['../data/csv/cv_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+end
+clear('all');
+% delete('*.mat'); % Only for test purposes. Comment it out during actual runs.
+
+
+%% Plots
+
+t = 1; u = [10 10 10]; 
+%need to write a module to make relevant plots with su(n)-symmetric
+%variables.
+m = 3;
+n = -1;
+dno = -1;
+% order0 = 1:3;
+orderlist = [1 4 5];
+obslist = {'density','ninj'};
+
+
+for obs_idx = 1:length(obslist)
+    obs = obslist{obs_idx}; 
+    save=true;
+    impbalance_sun_plots(t,u,m,n,dno,obs,orderlist,save);
+end
+clear('all');
+
+function impbalance_sun_plots(t,u,m,n,dno,obs,orderlist,save)
+    T = 2; %need to check if the correct T data is plotted
+    muq = readmatrix(join(['NLCE_mat_files/N=',num2str(m),'/muq.csv']));
+    colorlist = {'g','c','y','r','b'};
+    markerlist = {'o', 'x', '^'};
+    rev_pair_idx = [1 2; 1 3; 2 3];
+
+    ylim_list = containers.Map;
+    ylim_list('density') = [0,m];
+    ylim_list('total_density_fluc') = [0,2];
+    ylim_list('compressibility') = [0,1];
+    ylim_list('doublon') = [0,m];
+    ylim_list('entropy') = [0,2*log(m)];
+    ylim_list('cv') = [-1,20];
+    ylim_list('ninj') = [-.1,.1];
+    ylim_list('nini') = [-.5,.5];
+
+    ylabel_list = containers.Map;
+    ylabel_list('density') = '$\rho$';
+    ylabel_list('doublon') = '$\mathcal{D}$';
+    ylabel_list('total_density_fluc') = '$\langle\Delta \rho^2\rangle$';
+    ylabel_list('compressibility') = '$\kappa$';
+    ylabel_list('entropy') = '$\mathcal{S}$';
+    ylabel_list('cv') = '$C_V$';
+    ylabel_list('ninj') = '$\langle n_{a,i}n_{b,i+1}\rangle - \langle n_{a,i}\rangle\langle n_{b,i+1}\rangle$';
+    ylabel_list('nini') = '$\langle n_{a,i}n_{b,i}\rangle - \langle n_{a,i}\rangle\langle n_{b,i}\rangle$';
+
+    legend_list = containers.Map;
+    legend_list('density') = 'flavor';
+    legend_list('total_density_fluc') = '';
+    legend_list('compressibility') = 'flavor';
+    legend_list('doublon') = 'pair';
+    legend_list('entropy') = '';
+    legend_list('ninj') = 'pair';
+    legend_list('nini') = 'pair';
+    figure;
+    for order=orderlist
+        if strcmp(obs,'density') || strcmp(obs,'compressibility')
+            len = m;
+        elseif strcmp(obs,'doublon') || strcmp(obs,'ninj') ||strcmp(obs,'nini')
+            len = uint8(m*(m-1)/2);
+        else
+            len = 1;
+        end
+        observable = zeros(length(muq),len);
+        for idx = 1:len
+            if strcmp(obs,'density') || strcmp(obs,'compressibility')
+                fname = join(['data/' obs '_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']);
+            elseif strcmp(obs,'doublon') || strcmp(obs,'ninj') || strcmp(obs,'nini')
+                fname = join(['data/' obs '_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']);
+            else
+                fname = join(['data/' obs '_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']);
+            end
+            observable(:,idx) = readmatrix(fname);
+            if order==max(orderlist) && (strcmp(obs,'density') || strcmp(obs,'compressibility'))
+                plot(muq,observable(:,idx),colorlist{order},'Marker',markerlist{idx},'MarkerSize',10,'LineStyle','none','DisplayName',join([legend_list(obs), num2str(idx)]));
+
+            elseif order==max(orderlist) && (strcmp(obs,'doublon') || strcmp(obs,'ninj') || strcmp(obs,'nini'))
+                plot(muq,observable(:,idx),colorlist{order},'Marker',markerlist{idx},'MarkerSize',10,'LineStyle','none','DisplayName',join([legend_list(obs), num2str(rev_pair_idx(idx,:))]));
+            else
+                h = plot(muq,observable(:,idx),colorlist{order},'Marker',markerlist(idx),'MarkerSize',10,'LineStyle','--','LineWidth',2);
+                set(h,'HandleVisibility','off');
+            end
+            hold on;
+        end
+        if strcmp(obs,'density') || strcmp(obs,'doublon')
+            if order==max(orderlist)
+                plot(muq,sum(observable,2),'Color',colorlist{order},'LineStyle','--','LineWidth',2,'DisplayName','sum');
+            else
+                h = plot(muq,sum(observable,2),'Color',colorlist{order},'LineStyle','--','LineWidth',2);
+                set(h,'HandleVisibility','off');
+            end
+        end
+    end
+    ylabel(ylabel_list(obs),'Interpreter','latex');
+    if strcmp(obs,'entropy')
+        plot([min(muq),max(muq)],[log(m),log(m)],'k-','LineWidth',2,'DisplayName',join(['log(',num2str(m),')']));
+    end
+    if strcmp(obs,'doublon')
+        plot([min(muq),max(muq)],[1/m,1/m],'k-','LineWidth',2,'DisplayName','1/N');
+    end
+    grid on;
+    ax = gca;
+    ax.XAxis.FontSize = 20;
+    ax.YAxis.FontSize = 20;
+    ax.Title.FontSize = 20;
+    ylim(ylim_list(obs));
+    xlim([min(muq),max(muq)]);
+    xlabel('\mu');
+    lgd = legend;
+    lgd.FontSize = 16;
+    lgd.Location = 'northwest';
+    annotation('textbox', [0.35, 0.8, 0.1, 0.1], 'String', 'green: Atomic Limit', 'EdgeColor', 'none', 'FontSize', 16, 'FontWeight', 'bold', 'Color', 'green');
+    annotation('textbox', [0.35, 0.75, 0.1, 0.1], 'String', 'red: NLCE 4', 'EdgeColor', 'none', 'FontSize', 16, 'FontWeight', 'bold', 'Color', 'red');
+    annotation('textbox', [0.35, 0.7, 0.1, 0.1], 'String', 'blue: NLCE 5', 'EdgeColor', 'none', 'FontSize', 16, 'FontWeight', 'bold', 'Color', 'blue');
+    title(join(["T/t=", num2str(T), ", U/t=(", num2str(u),")"]));
+    ustr = num2str(u);
+    ustr = strrep(ustr, '.', 'p');
+    if save
+        print(join(['plots/',obs,'_u=',ustr,'_T=',num2str(T)]),'-dpng','-r300');
+    end
+end
+
+
