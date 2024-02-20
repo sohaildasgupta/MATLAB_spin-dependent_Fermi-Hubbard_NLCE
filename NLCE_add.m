@@ -41,8 +41,9 @@ parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
 [mu0, T] = find_mu0_vals(parameter_file_path,u,m);
 %% mu-T grid
 muq = zeros(numel(r),m);
+kr = [.1, 1, 1];
 for i=1:m
-    muq(:,i) = mu0(i) - .5*(184/555.6)*r.^2; 
+    muq(:,i) = mu0(i) - .5*kr(i)*r.^2; % GET the t and lattice confinement from file.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
 Tarray = [T];
@@ -64,7 +65,7 @@ Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %wri
 figure;
 for i=1:m
     data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
-    data_plot(r,density(i,:,1,1),sprintf("NLCE 1 n_%d",i))
+    data_plot(r,density(i,:,1,5),sprintf("NLCE 1 n_%d",i))
 end
 
 
@@ -350,7 +351,7 @@ function data_plot(xvals, yvals,varargin)
         legend_string = varargin{1};
     end
     if isempty(yerr)
-        plot(xvals,yvals,'o-','DisplayName',legend_string)
+        plot(xvals,yvals,'x-','DisplayName',legend_string)
     else
         errorbar(xvals,yvals,yerr,'o-','DisplayName',legend_string)
     end

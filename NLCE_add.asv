@@ -42,7 +42,7 @@ parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
 %% mu-T grid
 muq = zeros(numel(r),m);
 for i=1:m
-    muq(:,i) = mu0(i) - .5*(184/555.6)*r.^2; 
+    muq(:,i) = mu0(i) - .5*2*r.^2; % GET the t and lattice confinement from file.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
 Tarray = [T];
@@ -63,8 +63,10 @@ Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %wri
 [T,Tidx] = findClosestValue(Tarray,temperature_cut); % Find the T closest to the input and the corresponding slice index.
 figure;
 for i=1:m
-    data_plot(r,data(:,i+1),data(:,i+m),sprintf("n_%d",))
+    data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
+    data_plot(r,density(i,:,1,5),sprintf("NLCE 1 n_%d",i))
 end
+
 
 % try
 %     for obs_idx = 1:length(obslist)
@@ -339,20 +341,21 @@ end
 function data_plot(xvals, yvals,varargin)
     if nargin<3
         yerr = [];
-        legend = "";
+        legend_string = "";
     elseif nargin==3
-        yerr = varargin{1};
-        legend = "";
+        yerr = [];
+        legend_string = varargin{1};
     else
-        yerr = varargin{1};
-        legend = varargin{2};
+        yerr = varargin{2};
+        legend_string = varargin{1};
     end
     if isempty(yerr)
-        plot(xvals,yvals,'o-','DisplayName',legend)
+        plot(xvals,yvals,'o-','DisplayName',legend_string)
     else
-        errorbar(xvals,yvals,yerr,'o-','DisplayName',legend)
+        errorbar(xvals,yvals,yerr,'o-','DisplayName',legend_string)
     end
     grid on;
+    legend('Location','northeast');
     hold on;
 end
 
