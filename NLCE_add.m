@@ -15,9 +15,37 @@ mu = zeros(1,m);
 %Dictionary to map  the pair indices to single integer values.
 rev_pair_idx = [1 2; 1 3; 2 3];
 
+%% Obtaining the experimental data
+file_path = "../experimental_data/";
+% Step 1: Convert float array to string array with "." replaced by "p"
+stringArray = arrayfun(@(x) strrep(sprintf('%.1f', x), '.', 'p'), u, 'UniformOutput', false);
+
+% Step 2: Loop through directory to check for filenames
+directory = '../experimental_data'; % Specify your directory path
+fileNames = dir(directory);
+for i = 1:length(fileNames)
+    if fileNames(i).isdir == 0 % Check if it's not a directory
+        fileName = fileNames(i).name;
+        % Check if filename contains all strings in stringArray
+        if all(contains(fileName, stringArray))
+            break;
+        end
+    end
+end
+data_file_path = join([file_path,fileName],"");
+data = readmatrix(data_file_path,"FileType","text","NumHeaderLines",1);
+% distance 
+r = data(:,1);
+% Extract the center-of-trap mu's HTE0 fit from file
+parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
+[mu0, T] = find_mu0_vals(parameter_file_path,u,m);
 %% mu-T grid
-muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
-Tarray = [1];
+muq = zeros(numel(r),m);
+for i=1:m
+    muq(:,i) = mu0(i) - .5*(184/555.6)*r.^2; 
+end
+%muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
+Tarray = [T];
 mu_file = join(['../data/csv_files/N=',num2str(m),'/muq.csv']);
 T_file = join(['../data/csv_files/N=',num2str(m),'/T.csv']);
 writematrix(muq,mu_file);
@@ -25,7 +53,7 @@ writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
 %% Generate the NLCE sum
-[density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false);
+[density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false); % 4D double [m,mu,T,order]
 %% Plot
 % Necessary parameters
 temperature_cut = 1; % units of t.
@@ -38,7 +66,7 @@ try
     for obs_idx = 1:length(obslist)
         obs = obslist{obs_idx};
         save=true;
-        impbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
     end
 catch
     % Define parameters not in the current workspace.
@@ -46,7 +74,7 @@ catch
     for obs_idx = 1:length(obslist)
         obs = obslist{obs_idx};
         save=true;
-        impbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
     end
 end
 
@@ -60,7 +88,7 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
     itemlist = cellfun(@(x) x, observables, 'UniformOutput',false);
     for i=1:numel(itemlist)
         if strcmp(itemlist{i},"density")
-            NLCE_density = zeros(m,numel(muq),numel(Tarray),numel(orderlist));
+            NLCE_density = zeros(m,size(muq,1),numel(Tarray),numel(orderlist));
         end
     end
     CTlist = zeros();
@@ -121,8 +149,9 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
             catch
                 alist = [];
                 for T = Tarray
-                    for mu0 = muq
-                        deltamu = zeros(1,m) - mu0; % REWRITE To include different mus
+                    for mu_idx = 1:size(muq,1)
+                        mu0 = muq(mu_idx,:);
+                        deltamu =  - mu0; % REWRITE To include different mus
                         densityaccum = zeros(1,m);
                         density_sq_accum = zeros(1,m+1);
                         for spin_idx = 1:m
@@ -168,14 +197,14 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
         % Return the desired data.
         if exist("NLCE_density",'var') == 1
             for idx = 1:m
-                NLCE_density(idx,:,:,order) = reshape(CTlist(:, idx),[numel(muq),numel(Tarray)])';
+                NLCE_density(idx,:,:,order) = reshape(CTlist(:, idx),[size(muq,1),numel(Tarray)])';
             end
         end
         
         % Save data in files
         if save_files
             for idx = 1:m
-                writematrix(reshape(CTlist(:, idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/density_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+                writematrix(reshape(CTlist(:, idx),[size(muq,1),numel(Tarray)])', join(['../data/csv_files/density_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
                 % writematrix(1/T*reshape(CTlist(:, m+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/compressibility_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
             end
             % writematrix(reshape(CTlist(:, 2*m + 1) - (sum(CTlist(:,1:m),2).^2),[numel(muq),numel(Tarray)])', join(['../data/csv_files/total_density_fluc_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
@@ -197,7 +226,7 @@ end
 
 
 
-function impbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
+function imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
     muq = readmatrix(join(['../data/csv_files/N=',num2str(m),'/muq.csv']));
     colorlist = {'g','c','y','r','b'};
     markerlist = {'o', 'x', '^'};
@@ -314,5 +343,57 @@ function [closestValue, index] = findClosestValue(array, target)
     closestValue = array(index);
 end
 
-
+function [mu0, T] = find_mu0_vals(filepath, u, m)
+    
+    % Open the file for reading
+    fileID = fopen(filepath, 'r');
+    
+    % Initialize variables to store the result
+    mu0 = []; % Default value if "mu1" is not found
+    T = NaN;
+    % Define the string pattern after which "mu1" should occur
+    exp_u = [u(2) u(1) u(3)]; % experiment data has U13 U12 U23.
+    pattern = sprintf("%.1f ",exp_u);
+    pattern = strtrim(pattern);
+   % Read each line of the file
+    found_pattern = false;
+    tline = fgetl(fileID);
+    while ~found_pattern && ischar(tline)
+        
+        % Search for the specific pattern in the line
+        idx_pattern = strfind(tline, pattern);
+        if ~isempty(idx_pattern)
+            found_pattern = true; % Set flag to true if the pattern is found
+        end
+        % Read the next line
+        tline = fgetl(fileID);
+    end
+    
+    % Once the pattern is found, search for the next occurrence of "mu_i"
+    for i=1:m+1
+        while ischar(tline) && found_pattern
+            % Search for "mu_i" and "T" in the line
+            idx_T = strfind(tline, "T:");
+            idx_mu = strfind(tline, sprintf('mu%d:',i-1));          
+            if i==1
+                if ~isempty(idx_T)
+                    T_str = tline(idx_T(1) + 3:end);
+                    T = str2double(T_str);
+                    break;
+                end
+            end
+            if ~isempty(idx_mu)
+                % If "mu1" is found, extract the float value
+                mu_str = tline(idx_mu(1) + 5:end); % Skip "mu1: "
+                mu0(end+1) = str2double(mu_str); % Convert to float
+                break; % Exit the loop once found
+            end
+            % Read the next line
+            tline = fgetl(fileID);
+        end
+    end
+    
+    % Close the file
+    fclose(fileID);
+end
 

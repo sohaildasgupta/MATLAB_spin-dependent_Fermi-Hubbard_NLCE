@@ -15,9 +15,37 @@ mu = zeros(1,m);
 %Dictionary to map  the pair indices to single integer values.
 rev_pair_idx = [1 2; 1 3; 2 3];
 
+%% Obtaining the experimental data
+file_path = "../experimental_data/";
+% Step 1: Convert float array to string array with "." replaced by "p"
+stringArray = arrayfun(@(x) strrep(sprintf('%.1f', x), '.', 'p'), u, 'UniformOutput', false);
+
+% Step 2: Loop through directory to check for filenames
+directory = '../experimental_data'; % Specify your directory path
+fileNames = dir(directory);
+for i = 1:length(fileNames)
+    if fileNames(i).isdir == 0 % Check if it's not a directory
+        fileName = fileNames(i).name;
+        % Check if filename contains all strings in stringArray
+        if all(contains(fileName, stringArray))
+            break;
+        end
+    end
+end
+data_file_path = join([file_path,fileName],"");
+data = readmatrix(data_file_path,"FileType","text","NumHeaderLines",1);
+% distance 
+r = data(:,1);
+% Extract the center-of-trap mu's HTE0 fit from file
+parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
+[mu0, T] = find_mu0_vals(parameter_file_path,u,m);
 %% mu-T grid
-muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
-Tarray = [1];
+muq = zeros(numel(r),m);
+for i=1:m
+    muq(:,i) = mu0(i) - .5*(184/555.6)*r.^2; 
+end
+%muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
+Tarray = [T];
 mu_file = join(['../data/csv_files/N=',num2str(m),'/muq.csv']);
 T_file = join(['../data/csv_files/N=',num2str(m),'/T.csv']);
 writematrix(muq,mu_file);
@@ -25,10 +53,10 @@ writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
 %% Generate the NLCE sum
-[density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,'false');
-%% Plots
+[density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false);
+%% Plot
 % Necessary parameters
-temperature_cut = 8; % units of t.
+temperature_cut = 1; % units of t.
 orderlist = [1 4 5]; % NLCE order list to be plotted
 obslist = {'density'}; % Obseravable list to be plotted.
 Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %write a function to find the closes T value in the grid
@@ -38,7 +66,7 @@ try
     for obs_idx = 1:length(obslist)
         obs = obslist{obs_idx};
         save=true;
-        impbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
     end
 catch
     % Define parameters not in the current workspace.
@@ -46,7 +74,7 @@ catch
     for obs_idx = 1:length(obslist)
         obs = obslist{obs_idx};
         save=true;
-        impbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
     end
 end
 
@@ -60,7 +88,7 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
     itemlist = cellfun(@(x) x, observables, 'UniformOutput',false);
     for i=1:numel(itemlist)
         if strcmp(itemlist{i},"density")
-            NLCE_density = zeros(numel(m,muq),numel(Tarray),numel(orderlist));
+            NLCE_density = zeros(m,numel(muq),numel(Tarray),numel(orderlist));
         end
     end
     CTlist = zeros();
@@ -90,7 +118,7 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
                 disp(['ED data for graph ', num2str(key), ' not found. Start to calculate ED.']);
     
                 %[timer_count, spectra, nsigmapermute, testn, nimatrix, ni2matrix, domatrix, ninj] = ED_solver(g{k},t,u,n,m,dno,itemlist{:});
-                [timer_count, spectra, nsigmapermute, testn, nimatric] = ED_solver(g{k},t,u,n,m,dno,itemlist{:});
+                [timer_count, spectra, nsigmapermute, testn, nimatrix] = ED_solver(g{k},t,u,n,m,dno,itemlist{:});
                 disp(['ED calculation for graph ', num2str(key), ' finished.']);
                 disp(timer_count);
             end
@@ -121,38 +149,38 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
             catch
                 alist = [];
                 for T = Tarray
-                    for mu0 = muq
-                        deltamu = mu - mu0;
+                    for mu = 
+                        deltamu =  - mu0; % REWRITE To include different mus
                         densityaccum = zeros(1,m);
                         density_sq_accum = zeros(1,m+1);
                         for spin_idx = 1:m
                             rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
-                            rho2_matrix = cellfun(@(x) x{spin_idx},ni2matrix,'UniformOutput',false);
+                            %rho2_matrix = cellfun(@(x) x{spin_idx},ni2matrix,'UniformOutput',false);
                             densityaccum(spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
-                            density_sq_accum(spin_idx) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn, rho2_matrix);
+                            %density_sq_accum(spin_idx) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn, rho2_matrix);
                         end
-                        density_sq_accum(m+1) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn,cellfun(@(x) x{m+1},ni2matrix,'UniformOutput',false));
-                        doaccum = zeros(1,uint8(m*(m-1)/2));
-                        % onsite_cor_accum = zeros(1,uint8(m*(m-1)/2));
-                        ninjaccum = zeros(1,uint8(m*(m-1)/2));
-                        for pair_idx = 1:uint8(m*(m-1)/2)
-                            pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
-                            doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
-                            ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
-                            correlatoraccum = (LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix));
-                            niniaccum(pair_idx) = sum(correlatoraccum(numEdge+1:end)); %on-site
-                            if l>1
-                                ninjaccum(pair_idx) = sum(correlatoraccum(1:numEdge)) - 1/l^2*numEdge*densityaccum(rev_pair_idx(pair_idx,1))*densityaccum(rev_pair_idx(pair_idx,2)); %nearest-neighbor
-                            end
-                        end
-                        energyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'energy') + mu0*sum(densityaccum) ;
-                        energy_sq = LDA_measure(spectra ,deltamu, T, nsigmapermute, testn, 'energy_square');
-                        cv_accum = 1/T^2*(energy_sq - energyaccum^2);
-                        entropyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'entropy') ;
+                        % density_sq_accum(m+1) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn,cellfun(@(x) x{m+1},ni2matrix,'UniformOutput',false));
+                        % doaccum = zeros(1,uint8(m*(m-1)/2));
+                        % % onsite_cor_accum = zeros(1,uint8(m*(m-1)/2));
+                        % ninjaccum = zeros(1,uint8(m*(m-1)/2));
+                        % for pair_idx = 1:uint8(m*(m-1)/2)
+                        %     pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
+                        %     doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
+                        %     ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
+                        %     correlatoraccum = (LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix));
+                        %     niniaccum(pair_idx) = sum(correlatoraccum(numEdge+1:end)); %on-site
+                        %     if l>1
+                        %         ninjaccum(pair_idx) = sum(correlatoraccum(1:numEdge)) - 1/l^2*numEdge*densityaccum(rev_pair_idx(pair_idx,1))*densityaccum(rev_pair_idx(pair_idx,2)); %nearest-neighbor
+                        %     end
+                        % end
+                        %energyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'energy') + mu0*sum(densityaccum) ;
+                        %energy_sq = LDA_measure(spectra ,deltamu, T, nsigmapermute, testn, 'energy_square');
+                        %cv_accum = 1/T^2*(energy_sq - energyaccum^2);
+                        %entropyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'entropy') ;
                         %cnnaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, cnn) ;
                         %ninjaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj);
                         %  CTlist(end + 1, :) = [T mu0 densityaccum doaccum energyaccum entropyaccum cnnaccum' ninjaccum'];
-                        alist(end + 1, :) = [densityaccum(:)' density_sq_accum(:)' doaccum(:)' energyaccum entropyaccum cv_accum niniaccum(:)' ninjaccum(:)'];
+                        alist(end + 1, :) = [densityaccum(:)'];
                     end
                 end
                 % nlce = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/" ,key],'');
@@ -170,7 +198,6 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
             for idx = 1:m
                 NLCE_density(idx,:,:,order) = reshape(CTlist(:, idx),[numel(muq),numel(Tarray)])';
             end
-            varargout{end + 1} = NLCE_density;
         end
         
         % Save data in files
@@ -179,25 +206,26 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
                 writematrix(reshape(CTlist(:, idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/density_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
                 % writematrix(1/T*reshape(CTlist(:, m+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/compressibility_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
             end
-            writematrix(reshape(CTlist(:, 2*m + 1) - (sum(CTlist(:,1:m),2).^2),[numel(muq),numel(Tarray)])', join(['../data/csv_files/total_density_fluc_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
-            for idx = 1:uint8(m*(m-1)/2)
-                connected = CTlist(:,rev_pair_idx(idx,1)).*CTlist(:,rev_pair_idx(idx,2));
-                writematrix(reshape(CTlist(:,2*m+1+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/doublon_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
-                writematrix(reshape(CTlist(:,2*m+1+uint8(m*(m-1)/2)+3+idx)-connected,[numel(muq),numel(Tarray)])', join(['../data/csv_files/nini_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
-                if order == 1
-                    connected = 0;
-                end
-                writematrix(reshape(CTlist(:,2*m+1+2*uint8(m*(m-1)/2)+3+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/ninj_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
-            end
-            writematrix(reshape(CTlist(:,2*m+1+ uint8(m*(m-1)/2) + 2),[numel(muq),numel(Tarray)])', join(['../data/csv_files/entropy_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
-            writematrix(reshape(CTlist(:,2*m+1+ uint8(m*(m-1)/2) + 3),[numel(muq),numel(Tarray)])', join(['../data/csv_files/cv_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+            % writematrix(reshape(CTlist(:, 2*m + 1) - (sum(CTlist(:,1:m),2).^2),[numel(muq),numel(Tarray)])', join(['../data/csv_files/total_density_fluc_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+            % for idx = 1:uint8(m*(m-1)/2)
+            %     connected = CTlist(:,rev_pair_idx(idx,1)).*CTlist(:,rev_pair_idx(idx,2));
+            %     writematrix(reshape(CTlist(:,2*m+1+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/doublon_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+            %     writematrix(reshape(CTlist(:,2*m+1+uint8(m*(m-1)/2)+3+idx)-connected,[numel(muq),numel(Tarray)])', join(['../data/csv_files/nini_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+            %     if order == 1
+            %         connected = 0;
+            %     end
+            %     writematrix(reshape(CTlist(:,2*m+1+2*uint8(m*(m-1)/2)+3+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/ninj_m'  num2str(m) '_pair' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+            % end
+            % writematrix(reshape(CTlist(:,2*m+1+ uint8(m*(m-1)/2) + 2),[numel(muq),numel(Tarray)])', join(['../data/csv_files/entropy_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+            % writematrix(reshape(CTlist(:,2*m+1+ uint8(m*(m-1)/2) + 3),[numel(muq),numel(Tarray)])', join(['../data/csv_files/cv_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
         end
     end
+    varargout = {NLCE_density};
 end
 
 
 
-function impbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
+function imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
     muq = readmatrix(join(['../data/csv_files/N=',num2str(m),'/muq.csv']));
     colorlist = {'g','c','y','r','b'};
     markerlist = {'o', 'x', '^'};
@@ -314,5 +342,57 @@ function [closestValue, index] = findClosestValue(array, target)
     closestValue = array(index);
 end
 
-
+function [mu0, T] = find_mu0_vals(filepath, u, m)
+    
+    % Open the file for reading
+    fileID = fopen(filepath, 'r');
+    
+    % Initialize variables to store the result
+    mu0 = []; % Default value if "mu1" is not found
+    T = NaN;
+    % Define the string pattern after which "mu1" should occur
+    exp_u = [u(2) u(1) u(3)]; % experiment data has U13 U12 U23.
+    pattern = sprintf("%.1f ",exp_u);
+    pattern = strtrim(pattern);
+   % Read each line of the file
+    found_pattern = false;
+    tline = fgetl(fileID);
+    while ~found_pattern && ischar(tline)
+        
+        % Search for the specific pattern in the line
+        idx_pattern = strfind(tline, pattern);
+        if ~isempty(idx_pattern)
+            found_pattern = true; % Set flag to true if the pattern is found
+        end
+        % Read the next line
+        tline = fgetl(fileID);
+    end
+    
+    % Once the pattern is found, search for the next occurrence of "mu_i"
+    for i=1:m+1
+        while ischar(tline) && found_pattern
+            % Search for "mu_i" and "T" in the line
+            idx_T = strfind(tline, "T:");
+            idx_mu = strfind(tline, sprintf('mu%d:',i-1));          
+            if i==1
+                if ~isempty(idx_T)
+                    T_str = tline(idx_T(1) + 3:end);
+                    T = str2double(T_str);
+                    break;
+                end
+            end
+            if ~isempty(idx_mu)
+                % If "mu1" is found, extract the float value
+                mu_str = tline(idx_mu(1) + 5:end); % Skip "mu1: "
+                mu0(end+1) = str2double(mu_str); % Convert to float
+                break; % Exit the loop once found
+            end
+            % Read the next line
+            tline = fgetl(fileID);
+        end
+    end
+    
+    % Close the file
+    fclose(fileID);
+end
 
