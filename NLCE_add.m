@@ -56,27 +56,33 @@ clear("mu_file","T_file");
 [density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false); % 4D double [m,mu,T,order]
 %% Plot
 % Necessary parameters
-temperature_cut = 1; % units of t.
+temperature_cut = T; % units of t.
 orderlist = [1 4 5]; % NLCE order list to be plotted
 obslist = {'density'}; % Obseravable list to be plotted.
 Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %write a function to find the closes T value in the grid
 [T,Tidx] = findClosestValue(Tarray,temperature_cut); % Find the T closest to the input and the corresponding slice index.
-
-try
-    for obs_idx = 1:length(obslist)
-        obs = obslist{obs_idx};
-        save=true;
-        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
-    end
-catch
-    % Define parameters not in the current workspace.
-    t = 1; u = [1 10 10]; m = 3; n = -1; dno = -1;
-    for obs_idx = 1:length(obslist)
-        obs = obslist{obs_idx};
-        save=true;
-        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
-    end
+figure;
+for i=1:m
+    data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
+    data_plot(r,density(i,:,1,1),sprintf("NLCE 1 n_%d",i))
 end
+
+
+% try
+%     for obs_idx = 1:length(obslist)
+%         obs = obslist{obs_idx};
+%         save=true;
+%         imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+%     end
+% catch
+%     % Define parameters not in the current workspace.
+%     t = 1; u = [1 10 10]; m = 3; n = -1; dno = -1;
+%     for obs_idx = 1:length(obslist)
+%         obs = obslist{obs_idx};
+%         save=true;
+%         imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+%     end
+% end
 
 
 %clear('all');
@@ -330,6 +336,27 @@ function imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
     if save
         print(join(['../plots/',obs,'_u=',ustr,'_T=',num2str(T)]),'-dpng','-r300');
     end
+end
+
+function data_plot(xvals, yvals,varargin)
+    if nargin<3
+        yerr = [];
+        legend_string = "";
+    elseif nargin==3
+        yerr = [];
+        legend_string = varargin{1};
+    else
+        yerr = varargin{2};
+        legend_string = varargin{1};
+    end
+    if isempty(yerr)
+        plot(xvals,yvals,'o-','DisplayName',legend_string)
+    else
+        errorbar(xvals,yvals,yerr,'o-','DisplayName',legend_string)
+    end
+    grid on;
+    legend('Location','northeast');
+    hold on;
 end
 
 function [closestValue, index] = findClosestValue(array, target)

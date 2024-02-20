@@ -53,30 +53,34 @@ writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
 %% Generate the NLCE sum
-[density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false);
+[density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false); % 4D double [m,mu,T,order]
 %% Plot
 % Necessary parameters
-temperature_cut = 1; % units of t.
+temperature_cut = T; % units of t.
 orderlist = [1 4 5]; % NLCE order list to be plotted
 obslist = {'density'}; % Obseravable list to be plotted.
 Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %write a function to find the closes T value in the grid
 [T,Tidx] = findClosestValue(Tarray,temperature_cut); % Find the T closest to the input and the corresponding slice index.
-
-try
-    for obs_idx = 1:length(obslist)
-        obs = obslist{obs_idx};
-        save=true;
-        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
-    end
-catch
-    % Define parameters not in the current workspace.
-    t = 1; u = [1 10 10]; m = 3; n = -1; dno = -1;
-    for obs_idx = 1:length(obslist)
-        obs = obslist{obs_idx};
-        save=true;
-        imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
-    end
+figure;
+for i=1:m
+    data_plot(r,data(:,i+1),data(:,i+m),sprintf("n_%d",))
 end
+
+% try
+%     for obs_idx = 1:length(obslist)
+%         obs = obslist{obs_idx};
+%         save=true;
+%         imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+%     end
+% catch
+%     % Define parameters not in the current workspace.
+%     t = 1; u = [1 10 10]; m = 3; n = -1; dno = -1;
+%     for obs_idx = 1:length(obslist)
+%         obs = obslist{obs_idx};
+%         save=true;
+%         imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save);
+%     end
+% end
 
 
 %clear('all');
@@ -88,7 +92,7 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
     itemlist = cellfun(@(x) x, observables, 'UniformOutput',false);
     for i=1:numel(itemlist)
         if strcmp(itemlist{i},"density")
-            NLCE_density = zeros(m,numel(muq),numel(Tarray),numel(orderlist));
+            NLCE_density = zeros(m,size(muq,1),numel(Tarray),numel(orderlist));
         end
     end
     CTlist = zeros();
@@ -149,7 +153,8 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
             catch
                 alist = [];
                 for T = Tarray
-                    for mu = 
+                    for mu_idx = 1:size(muq,1)
+                        mu0 = muq(mu_idx,:);
                         deltamu =  - mu0; % REWRITE To include different mus
                         densityaccum = zeros(1,m);
                         density_sq_accum = zeros(1,m+1);
@@ -196,14 +201,14 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
         % Return the desired data.
         if exist("NLCE_density",'var') == 1
             for idx = 1:m
-                NLCE_density(idx,:,:,order) = reshape(CTlist(:, idx),[numel(muq),numel(Tarray)])';
+                NLCE_density(idx,:,:,order) = reshape(CTlist(:, idx),[size(muq,1),numel(Tarray)])';
             end
         end
         
         % Save data in files
         if save_files
             for idx = 1:m
-                writematrix(reshape(CTlist(:, idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/density_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
+                writematrix(reshape(CTlist(:, idx),[size(muq,1),numel(Tarray)])', join(['../data/csv_files/density_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
                 % writematrix(1/T*reshape(CTlist(:, m+idx),[numel(muq),numel(Tarray)])', join(['../data/csv_files/compressibility_m'  num2str(m) '_flav' num2str(idx) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
             end
             % writematrix(reshape(CTlist(:, 2*m + 1) - (sum(CTlist(:,1:m),2).^2),[numel(muq),numel(Tarray)])', join(['../data/csv_files/total_density_fluc_m'  num2str(m) '_u' num2str(double(u)) '_' num2str(order) '_dno' num2str(dno) '_n' num2str(n)  '_nlce.csv']));
@@ -329,6 +334,26 @@ function imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
     if save
         print(join(['../plots/',obs,'_u=',ustr,'_T=',num2str(T)]),'-dpng','-r300');
     end
+end
+
+function data_plot(xvals, yvals,varargin)
+    if nargin<3
+        yerr = [];
+        legend = "";
+    elseif nargin==3
+        yerr = varargin{1};
+        legend = "";
+    else
+        yerr = varargin{1};
+        legend = varargin{2};
+    end
+    if isempty(yerr)
+        plot(xvals,yvals,'o-','DisplayName',legend)
+    else
+        errorbar(xvals,yvals,yerr,'o-','DisplayName',legend)
+    end
+    grid on;
+    hold on;
 end
 
 function [closestValue, index] = findClosestValue(array, target)
