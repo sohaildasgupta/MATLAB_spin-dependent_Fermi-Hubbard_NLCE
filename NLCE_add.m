@@ -5,7 +5,7 @@
 
 %% Parameters 
 feature('numcores')
-t = 1; u = [1.8 -2.4 -2.6];
+t = 1; u = [32.6 87.0 15.5];
 m = 3;
 n = -1;
 dno = -1;
@@ -41,9 +41,9 @@ parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
 [mu0, T] = find_mu0_vals(parameter_file_path,u,m);
 %% mu-T grid
 muq = zeros(numel(r),m);
-kr = [.1, 1, 1];
+% kr = ;
 for i=1:m
-    muq(:,i) = mu0(i) - .5*kr(i)*r.^2; % GET the t and lattice confinement from file.
+    muq(:,i) = mu0(i) - .5*(6*1.66054e-27)*(2*pi*228)^2/(6.626e-34*197.5)*(r*752*10^-9).^2; % GET the t and lattice confinement from file.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
 Tarray = [T];
@@ -65,7 +65,7 @@ Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %wri
 figure;
 for i=1:m
     data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
-    data_plot(r,density(i,:,1,5),sprintf("NLCE 1 n_%d",i))
+    data_plot(r,density(i,:,1,1),sprintf("NLCE 1 n_%d",i))
 end
 
 
