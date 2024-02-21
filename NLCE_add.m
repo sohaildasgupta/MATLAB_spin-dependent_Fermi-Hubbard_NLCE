@@ -36,14 +36,15 @@ data_file_path = join([file_path,fileName],"");
 data = readmatrix(data_file_path,"FileType","text","NumHeaderLines",1);
 % distance 
 r = data(:,1);
-% Extract the center-of-trap mu's HTE0 fit from file
+% Extract HTE0 fit from file (mu0's, T, lattice confinement and tunneling)
 parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
-[mu0, T] = find_mu0_vals(parameter_file_path,u,m);
+[mu0, T, omega, tunneling] = find_mu0_vals(parameter_file_path,u,m);
 %% mu-T grid
 muq = zeros(numel(r),m);
 % kr = ;
 for i=1:m
-    muq(:,i) = mu0(i) - .5*(6*1.66054e-27)*(2*pi*228)^2/(6.626e-34*197.5)*(r*752*10^-9).^2; % GET the t and lattice confinement from file.
+    muq(:,i) = mu0(i) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
+    % 752 nm is the lattice spacing distance.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
 Tarray = [T];
@@ -65,7 +66,7 @@ Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %wri
 figure;
 for i=1:m
     data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
-    data_plot(r,density(i,:,1,1),sprintf("NLCE 1 n_%d",i))
+    data_plot(r,density(i,:,1,5),sprintf("NLCE 1 n_%d",i))
 end
 
 
@@ -371,14 +372,14 @@ function [closestValue, index] = findClosestValue(array, target)
     closestValue = array(index);
 end
 
-function [mu0, T] = find_mu0_vals(filepath, u, m)
+function [mu0, T, omega, tunneling] = find_mu0_vals(filepath, u, m)
     
     % Open the file for reading
     fileID = fopen(filepath, 'r');
     
     % Initialize variables to store the result
-    mu0 = []; % Default value if "mu1" is not found
-    T = NaN;
+    mu0 = []; T = NaN; omega = NaN; tunneling = NaN;
+
     % Define the string pattern after which "mu1" should occur
     exp_u = [u(2) u(1) u(3)]; % experiment data has U13 U12 U23.
     pattern = sprintf("%.1f ",exp_u);
@@ -386,6 +387,7 @@ function [mu0, T] = find_mu0_vals(filepath, u, m)
    % Read each line of the file
     found_pattern = false;
     tline = fgetl(fileID);
+    lineCounter = 0;
     while ~found_pattern && ischar(tline)
         
         % Search for the specific pattern in the line
@@ -395,9 +397,11 @@ function [mu0, T] = find_mu0_vals(filepath, u, m)
         end
         % Read the next line
         tline = fgetl(fileID);
+        lineCounter = lineCounter + 1;
     end
     
     % Once the pattern is found, search for the next occurrence of "mu_i"
+    % and "T"
     for i=1:m+1
         while ischar(tline) && found_pattern
             % Search for "mu_i" and "T" in the line
@@ -419,6 +423,28 @@ function [mu0, T] = find_mu0_vals(filepath, u, m)
             % Read the next line
             tline = fgetl(fileID);
         end
+    end
+
+    %  Look for "t=<number>"
+    % Calculate the line number nLinesBefore the found string
+    targetLineNumber =  lineCounter - 3;
+
+    % Go to the target line
+    fseek(fileID, 0, 'bof');
+    for i = 1:targetLineNumber-1
+        fgetl(fileID);
+    end
+    
+    prevLine = fgetl(fileID);
+    % Look for the number in the previous line
+    if contains(prevLine, 't=')
+        tunneling = str2double(regexp(prevLine, 't=(\d+\.?\d*)', 'tokens', 'once'));
+    end
+    
+    %Look for "x <number>"
+    nextLine = fgetl(fileID);
+    if contains(nextLine,"x ")
+        omega = str2double(regexp(nextLine, 'x (\d+\.?\d*)', 'tokens', 'once'));
     end
     
     % Close the file
