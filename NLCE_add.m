@@ -42,15 +42,14 @@ parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
 xData = r;
 yData = data(:,2:4);
 initialGuess = [1,1,1,1];
-order_max = 1;
+order_max = 2;
 otherParams = {t,u,m,n,dno,order_max,tunneling, omega};
-fittingParams = lsqcurvefit(@(fitParams,x) density_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData);
-
+[fittingParams, resnorm, residual, exitflag, output] = lsqcurvefit(@(fitParams,x) density_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData);
+rmse = sqrt(mean(residual.^2));
 %% mu-T grid
 muq = zeros(numel(r),m);
-
 for i=1:m
-    muq(:,i) = fittingParams(i+1) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
+    muq(:,i) =  fittingParams(i+1) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
     % 752 nm is the lattice spacing distance.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
@@ -74,7 +73,7 @@ obslist = {'density'}; % Obseravable list to be plotted.
 Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %write a function to find the closes T value in the grid
 [T,Tidx] = findClosestValue(Tarray,temperature_cut); % Find the T closest to the input and the corresponding slice index.
 figure;
-plot_order = 1;
+plot_order = 5;
 for i=1:m
     data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
     data_plot(r,density(i,:,1,plot_order),sprintf("NLCE %d n_%d",[plot_order,i]))
@@ -153,14 +152,14 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
                 nlce_filename = strrep(nlce_filename,'.','p');
                 nlce = join([nlce_path,nlce_filename,".mat"],"");
                 load(nlce);
-    
+                
                 %WARNING : This deletes previous data. Need a better check.
-                if mulist ~= muq
+                if ~isequal(mulist, muq, 'RelTol', 1e-6)
                     disp("mu-list do not match, deleting nlce graph data...");
                     delete(nlce);
                     load(nlce);
                 end
-                if Tlist ~= Tarray
+                if ~isequal(Tlist, Tarray, 'RelTol', 1e-6)
                     disp("T-list do not match, deleting nlce graph data...");
                     delete(nlce);
                     load(nlce);
