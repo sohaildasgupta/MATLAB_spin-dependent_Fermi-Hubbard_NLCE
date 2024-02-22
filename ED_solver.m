@@ -403,6 +403,7 @@ for scidx = 1:nsigmalen
 
             clear('nsigmaspectra', 'nsigmaeigenstates');
             if io
+              
                 save(filename, 'spectra', 'nsigmapermute', 'testn', '-v7.3');
 
                 if ni
@@ -437,6 +438,9 @@ timer_count = toc(timer_count);
 outputs = {timer_count};
 outputs{end+1} = spectra;
 outputs{end + 1} = nsigmapermute;
+if io
+    save(filename, 'timer_count', '-append');
+end
 
 if nOutput > 2
     if numel(varargin)

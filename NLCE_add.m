@@ -3,14 +3,12 @@
 % Calls ED_NLCE to perform the ED on each graph.
 % Adds the properties together multiplying by the weight of each graph
 
-%% Parameters 
+%% ED Parameters 
 feature('numcores')
 t = 1; u = [32.6 87.0 15.5];
 m = 3;
 n = -1;
 dno = -1;
-orderlist = 1:5;
-mu = zeros(1,m);
 
 %Dictionary to map  the pair indices to single integer values.
 rev_pair_idx = [1 2; 1 3; 2 3];
@@ -39,22 +37,34 @@ r = data(:,1);
 % Extract HTE0 fit from file (mu0's, T, lattice confinement and tunneling)
 parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
 [mu0, T, omega, tunneling] = find_mu0_vals(parameter_file_path,u,m);
+
+%% Fitting data
+xData = r;
+yData = data(:,2:4);
+initialGuess = [1,1,1,1];
+order_max = 1;
+otherParams = {t,u,m,n,dno,order_max,tunneling, omega};
+fittingParams = lsqcurvefit(@(fitParams,x) density_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData);
+
 %% mu-T grid
 muq = zeros(numel(r),m);
-% kr = ;
+
 for i=1:m
-    muq(:,i) = mu0(i) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
+    muq(:,i) = fittingParams(i+1) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
     % 752 nm is the lattice spacing distance.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
-Tarray = [T];
+Tarray = [fittingParams(1)];
 mu_file = join(['../data/csv_files/N=',num2str(m),'/muq.csv']);
 T_file = join(['../data/csv_files/N=',num2str(m),'/T.csv']);
 writematrix(muq,mu_file);
 writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
+
 %% Generate the NLCE sum
+order_max = 5;
+orderlist = 1:order_max;
 [density] = NLCE_sum(t,u,m,n,dno,{"density"},orderlist,muq,Tarray,false); % 4D double [m,mu,T,order]
 %% Plot
 % Necessary parameters
@@ -64,9 +74,10 @@ obslist = {'density'}; % Obseravable list to be plotted.
 Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %write a function to find the closes T value in the grid
 [T,Tidx] = findClosestValue(Tarray,temperature_cut); % Find the T closest to the input and the corresponding slice index.
 figure;
+plot_order = 1;
 for i=1:m
     data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
-    data_plot(r,density(i,:,1,5),sprintf("NLCE 1 n_%d",i))
+    data_plot(r,density(i,:,1,plot_order),sprintf("NLCE %d n_%d",[plot_order,i]))
 end
 
 
@@ -94,6 +105,7 @@ end
 function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_files)
     outputs = {};
     itemlist = cellfun(@(x) x, observables, 'UniformOutput',false);
+    itemlist{end + 1} = 'fileio';
     for i=1:numel(itemlist)
         if strcmp(itemlist{i},"density")
             NLCE_density = zeros(m,size(muq,1),numel(Tarray),numel(orderlist));
@@ -111,7 +123,7 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
             [side1, side2] = findedge(g{k}); %for nearest neighbor correlator
             side1 = [side1' 1:l]; side2 = [side2' 1:l]; %on-site correlator
             filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/' key],'');
-            filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED"],' '); % name of file that saves the output
+            filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED.mat"],' '); % name of file that saves the output
             if any(strcmp(itemlist, "correlator"))
                 itemlist{end + 1} = side1;
                 itemlist{end + 1} = side2;
@@ -232,7 +244,44 @@ function varargout = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_
     varargout = {NLCE_density};
 end
 
+function density = density_vs_r_fitting_function(x, fitParams, otherParams)
+    % Assumes the ED files exist. Will not re-run the ED.
+    T = fitParams(1);
+    mu0 = fitParams(2:end);
 
+    t = otherParams{1}; u = otherParams{2}; m = otherParams{3}; n = otherParams{4};
+    dno = otherParams{5}; order_max = otherParams{6}; tunneling = otherParams{7}; omega = otherParams{8};
+    
+    mu = mu0 - .5*(6*1.66054e-27)*(2*pi*omega)^2*(x*752*10^-9).^2/(6.62607015e-34*tunneling); 
+    disp(mu);
+
+    density = zeros();
+    for order=1:order_max
+        [g, coefficient] = NLCE_load(order);
+        for k = 1:numel(g)
+            key = key_gen(g{k});
+            l = numnodes(g{k});
+            filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/', key],'');
+            filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED.mat"],' '); % name of file that saves the output
+
+            disp(['Try to find ED data for graph ', num2str(key), '...']);
+            load(filename,'nimatrix','nsigmapermute','spectra','testn'); % try to load result of the ED to one given graph
+            disp(['ED data for graph ',num2str(key), ' found.']);
+            temp_list = [];
+            for i = 1:numel(x)
+                deltamu =  - mu(i,:); % REWRITE To include different mus
+                densityaccum = zeros(1,m);
+                for spin_idx = 1:m
+                    rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
+                    densityaccum(spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
+                end
+                temp_list(end + 1,:) = [densityaccum(:)'];
+            end
+            density = density + coefficient(k)*temp_list; %nlce sum
+            disp(join([key, 'l=', l, "t=", double(t), "u=", double(u), "m=", m, "D=", dno, 'ED measurement finish']));
+        end
+    end
+end
 
 function imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
     muq = readmatrix(join(['../data/csv_files/N=',num2str(m),'/muq.csv']));
