@@ -5,7 +5,7 @@
 
 %% ED Parameters 
 feature('numcores')
-t = 1; u = [32.6 87.0 15.5];
+t = 1; u = [1.8 -2.4 -2.6];
 m = 3;
 n = -1;
 dno = -1;
@@ -38,13 +38,18 @@ r = data(:,1);
 parameter_file_path = join([file_path,"Parameters_for_datasets.txt"],"");
 [mu0, T, omega, tunneling] = find_mu0_vals(parameter_file_path,u,m);
 
-%% Fitting data
-xData = r;
-yData = data(:,2:4);
-initialGuess = [1,1,1,1];
-order_max = 2;
-otherParams = {t,u,m,n,dno,order_max,tunneling, omega};
-[fittingParams, resnorm, residual, exitflag, output] = lsqcurvefit(@(fitParams,x) density_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData);
+%% Fitting data (bootstrapping)
+indices = find(r < 30);
+xData = r(indices);
+yData = data(indices,2:4);
+initialGuess = [T, mu0(1,:)];
+order_max = 5;
+for fit_order = 1:order_max
+    otherParams = {t,u,m,n,dno,fit_order,tunneling, omega};
+    options = optimoptions('lsqcurvefit', 'OptimalityTolerance', 1e-6,'MaxIterations',1000,'FunctionTolerance',1e-6);
+    [fittingParams, resnorm, residual, exitflag, output] = lsqcurvefit(@(fitParams,x) density_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData,[.1,-5,-5,-5],[2,5,5,5],options);
+    initialGuess = fittingParams;
+end
 rmse = sqrt(mean(residual.^2));
 %% mu-T grid
 muq = zeros(numel(r),m);
@@ -74,10 +79,21 @@ Tarray = readmatrix(join(['../data/csv_files/N=',num2str(m),'/T.csv']));    %wri
 [T,Tidx] = findClosestValue(Tarray,temperature_cut); % Find the T closest to the input and the corresponding slice index.
 figure;
 plot_order = 5;
+colorlist  = {'blue', 'green', 'red'};
 for i=1:m
-    data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1));
-    data_plot(r,density(i,:,1,plot_order),sprintf("NLCE %d n_%d",[plot_order,i]))
+    data_plot(r,data(:,i+1),sprintf("n_%d",i),data(:,i+m+1),colorlist{i});
+    data_plot(r,density(i,:,1,plot_order),sprintf("NLCE %d n_%d",[plot_order,i]),colorlist{i});
 end
+ax = gca;
+ax.XAxis.FontSize = 20;
+ax.YAxis.FontSize = 20;
+ax.Title.FontSize = 20;
+xlim([min(r),max(r)]);
+xlabel('rd');
+ylabel('density');
+lgd = legend;
+lgd.FontSize = 20;
+lgd.Location = 'northeast';
 
 
 % try
@@ -252,7 +268,6 @@ function density = density_vs_r_fitting_function(x, fitParams, otherParams)
     dno = otherParams{5}; order_max = otherParams{6}; tunneling = otherParams{7}; omega = otherParams{8};
     
     mu = mu0 - .5*(6*1.66054e-27)*(2*pi*omega)^2*(x*752*10^-9).^2/(6.62607015e-34*tunneling); 
-    disp(mu);
 
     density = zeros();
     for order=1:order_max
@@ -392,17 +407,19 @@ function data_plot(xvals, yvals,varargin)
     if nargin<3
         yerr = [];
         legend_string = "";
-    elseif nargin==3
+    elseif nargin==4
         yerr = [];
         legend_string = varargin{1};
+        color = varargin{2};
     else
         yerr = varargin{2};
         legend_string = varargin{1};
+        color = varargin{3};
     end
     if isempty(yerr)
-        plot(xvals,yvals,'x-','DisplayName',legend_string)
+        plot(xvals,yvals,'--','Color',color,'MarkerSize',10,'LineWidth',2,'DisplayName',legend_string)
     else
-        errorbar(xvals,yvals,yerr,'o-','DisplayName',legend_string)
+        errorbar(xvals,yvals,yerr,'o','Color',color,'MarkerSize',10,'LineWidth',2,'DisplayName',legend_string)
     end
     grid on;
     legend('Location','northeast');
