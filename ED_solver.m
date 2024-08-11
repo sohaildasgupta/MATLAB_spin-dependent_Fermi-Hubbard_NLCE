@@ -1,4 +1,4 @@
-function varargout = ED_solver(graph, t, u, n, m, dno, varargin)
+function output = ED_solver(graph, t, u, n, m, dno, varargin)
 %
 % ED_solver - solve ED of a given graph or lattice size with different parameters and arguments
 %
@@ -39,7 +39,7 @@ function varargout = ED_solver(graph, t, u, n, m, dno, varargin)
 % Use graph key for NLCE summation.
 % Author : HT Wei, 2019 @ Rice
 %
-[ni, ni2, do, p2, nn, io, sun_symm] = deal(false);
+[ni, ni2, do, tri, p2, nn, io, sun_symm] = deal(false);
 itemlist = {};
 if all(u == u(1))
     sun_symm = true;
@@ -69,19 +69,25 @@ if numel(varargin)
             ni2 = true;
             itemlist{end + 1} = arg;
             continue
-        elseif strcmp(arg, 'doubleoccupancy')
+        elseif strcmp(arg, 'doublon')
             do = true;
             itemlist{end + 1} = arg;
-            continue    
+            continue   
+        elseif strcmp(arg, 'triplon')
+            tri = true;
+            itemlist{end + 1} = arg;
+            continue
         elseif strcmp(arg, 'fileio')
             io = true;
             itemlist{end + 1} = arg;
             continue
-        elseif strcmp(arg, 'correlator')
+        elseif strcmp(arg, 'nearest_pair')
             nn = true;
             itemlist{end + 1} = arg;
-            posi = input{idx + 1};
-            posj = input{idx + 2};
+            if l>1
+                posi = input{idx + 1};
+                posj = input{idx + 2};
+            end
             % poslen = length(posi);
             break
         end
@@ -170,31 +176,34 @@ for subbasisvector = subbasisvectorlist
 end
 
 spectra = {}; nsigmapermute = []; % time = 0;
-nOutput = nargout;
 
-if nOutput > 2
-    if numel(varargin)
-        testn = {};
-        if ni
-            nimatrix = {};
-        end
-        if ni2
-            ni2matrix = {};
-        end
-        if do
-            domatrix = {};
-        end
-        if nn
-            cnn = {};
-            ninj = {};
-        end
-        if io
-            save(filename, 'spectra', 'nsigmapermute', '-v7.3');
-        end
-    else
-        eigenstates = {}; basis = {};
+
+
+if numel(varargin)
+    testn = {};
+    if ni
+        nimatrix = {};
     end
+    if ni2
+        ni2matrix = {};
+    end
+    if do
+        domatrix = {};
+    end
+    if tri
+        trimatrix = {};
+    end
+    if nn
+        cnn = {};
+        ninj = {};
+    end
+    if io
+        save(filename, 'spectra', 'nsigmapermute', '-v7.3');
+    end
+else
+    eigenstates = {}; basis = {};
 end
+
     function varmem()
         %
         % Show memory usage of the 5 largest variables.
@@ -264,6 +273,7 @@ for scidx = 1:nsigmalen
         if ~sun_symm
             onsiteinteraction = zeros(fockdim,1);
             pair_count = zeros(uint8(m*(m-1)/2),fockdim);
+            triplon_count = zeros(uint8(m*(m-1)*(m-2)/6),fockdim);
             for fockdim_idx = 1:fockdim
                 for site_idx = 1:l
                     flavor_index = find(basisvector(fockdim_idx,site_idx,:));
@@ -276,6 +286,9 @@ for scidx = 1:nsigmalen
                             onsiteinteraction(fockdim_idx) = onsiteinteraction(fockdim_idx) + u(uidx);
                             pair_count(uidx,fockdim_idx) = pair_count(uidx,fockdim_idx) + 1;
                         end
+                    end
+                    if numel(flavor_index)>2 % works for only 3 flavors. update for general n-flavors.
+                        triplon_count(1,fockdim_idx) = triplon_count(1,fockdim_idx) + 1;
                     end
                 end
             end
@@ -315,12 +328,10 @@ for scidx = 1:nsigmalen
 
             disp('Start diagonalizing Hamiltonian matrix...');
             % tic
-            if nOutput > 2
-                [nsigmaeigenstates, nsigmaspectra] = eig(ham, 'vector'); % NOTE : nsigmaeigenstates are column vectors
+           
+            [nsigmaeigenstates, nsigmaspectra] = eig(ham, 'vector'); % NOTE : nsigmaeigenstates are column vectors
                 % [nsigmaeigenstates, nsigmaspectra] = eigs(ham, truncatedfockdim);
-            else
-                nsigmaspectra = eig(ham);
-            end
+            
             % toc
             clear('ham');
 
@@ -342,7 +353,11 @@ for scidx = 1:nsigmalen
                             ninj_mean = {};
                             for idx = 1:m
                                 for jdx = idx+1:m
-                                    ninj_mean{end + 1} = (basisvector(:,posi,idx) .* basisvector(:,posj,jdx))' * abs(nsigmaeigenstates).^2;
+                                    if l>1
+                                        ninj_mean{end + 1} = (basisvector(:,posi,idx) .* basisvector(:,posj,jdx))' * abs(nsigmaeigenstates).^2;
+                                    else
+                                        ninj_mean{end + 1} = 0;
+                                    end
                                 end
                             end
                             ninj{end + 1} = ninj_mean;
@@ -393,9 +408,16 @@ for scidx = 1:nsigmalen
                         domatrix{end + 1} = permuteno * onsiteinteraction' * abs(nsigmaeigenstates).^2;
                     end
                 end
-            elseif nOutput > 2
-                eigenstates{end + 1} = nsigmaeigenstates;
-                basis{end + 1} = basisvector;
+                if tri
+                    if ~sun_symm
+                        tri_mean = {};
+                        for triplon_idx = 1: uint8(m*(m-1)*(m-2)/6)
+                            tri_mean{end+1} = triplon_count(triplon_idx,:) * abs(nsigmaeigenstates).^2;
+                        end
+                        trimatrix{end + 1} = tri_mean;
+                    else
+                    end
+                end
             end
 
             spectra{end + 1} = nsigmaspectra;
@@ -415,13 +437,16 @@ for scidx = 1:nsigmalen
                 if do
                     save(filename, 'domatrix', '-append');
                 end
+                if tri
+                    save(filename, 'trimatrix', '-append');
+                end
 
                 if nn
                     save(filename, 'cnn', 'ninj', '-append');
                 end
 
                 % if scidx ~= nsigmalen
-                clear('spectra','nsigmapermute', 'testn', 'nimatrix', 'domatrix', 'cnn', 'ninj');
+                clear('spectra','nsigmapermute', 'testn', 'nimatrix', 'domatrix','trimatrix', 'cnn', 'ninj');
                 % end
             end
         % end
@@ -435,40 +460,45 @@ if io
     end
 end
 timer_count = toc(timer_count);
-outputs = {timer_count};
-outputs{end+1} = spectra;
-outputs{end + 1} = nsigmapermute;
-if io
-    save(filename, 'timer_count', '-append');
-end
 
-if nOutput > 2
-    if numel(varargin)
-        outputs{end + 1} = testn;
-        if ni
-            outputs{end + 1} = nimatrix;
-        end
-        if ni2
-            outputs{end + 1} = ni2matrix;
-        end
-        if do
-            outputs{end + 1} = domatrix;
-        end
-        if nn
-            % outputs{end + 1} = cnn;
-            outputs{end + 1} = ninj;
-        end
-    else
-        outputs = [outputs, {eigenstates}, {basis}];
+%saving the outputs in a struct
+output = struct();
+output.timer_count = timer_count;
+output.spectra = spectra;
+output.nsigmapermute = nsigmapermute;
+
+
+if numel(varargin)
+    % outputs{end + 1} = testn;
+    output.testn = testn;
+    if ni
+        % outputs{end + 1} = nimatrix;
+        output.nimatrix = nimatrix;
     end
-end
+    if ni2
+        % outputs{end + 1} = ni2matrix;
+        output.ni2matrix = ni2matrix;
+    end
+    if do
+        % outputs{end + 1} = domatrix;
+        output.domatrix = domatrix;
+    end
+    if tri
+        outputs.trimatrix = trimatrix;
+    end
+    if nn
+        % outputs{end + 1} = cnn;
+        outputs.ninj = ninj;
+    end
+
 if ~io
     save(filename, 'outputs', '-v7.3'); % save all result of the ED
 end
 
-varargout = outputs;
+% output = outputs;
 
 disp(join([key, "l=", l, "t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED finish"]));
+end
 end
 
 function counter = sortcount(C)
@@ -540,3 +570,4 @@ if ~isempty(lastbsvec)
     end
 end
 end
+

@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "bramvanbilsen.matlab-code-run"
+        "bramvanbilsen.matlab-code-run",
+        "mathworks.language-matlab"
     ]
 }
