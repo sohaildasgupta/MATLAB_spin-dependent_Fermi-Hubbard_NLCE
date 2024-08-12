@@ -27,7 +27,7 @@ filepath = searchForFile(directories,stringArray);
 data = readmatrix(filepath,"FileType","text","NumHeaderLines",1);
 % ni_data = obtain_exp_data("../experimental_data_Jul23",'1comp',u);
 % nd_data = obtain_exp_data("../experimental_data_Jul23",'doublon',u);
-if strcmp(obs_string,'doublon')
+if strcmp(obs_string,'doublon') || strcmp(obs_string,'onsite_pair') || strcmp(obs_string,'nearest_pair')
     temp = data(:,2);
     data(:,2) = data(:,3);
     data(:,3) = temp;
@@ -102,7 +102,7 @@ writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
 %% Generate the NLCE sum
-order_max = 1;
+order_max = 3;
 orderlist = 1:order_max;
 obs_list = {"density","doublon","triplon","onsite_pair","nearest_pair"};
 uoffset = [0 0 0];
@@ -114,8 +114,6 @@ unew = u + uoffset;
 % v=0;
 
 % density = atomic_limit_calc(unew,m,muq,Tarray,"density");
-% muq = [0,0,0];
-% Tarray = [2];
 varOutputs = NLCE_sum(t,unew,m,n,dno,obs_list,orderlist,muq,Tarray,false); % 4D double [m,mu,T,order]
 varouts = fieldnames(varOutputs);
 for i = 1:length(varouts)
@@ -136,13 +134,13 @@ mu_at = mean(fitvals(2:4,:),2)'+ [0 0 0];
 interactive_plot(mu_at, r, t, u, m, n, dno, tunneling, omega, data, obs_string); 
 %% Plot
 save = false;
-plot_order = 1;
+plot_order = 3;
 confidence_interval = false;
 
 % Plot parameters
 % temperature_cut = T; % units of t.
 % orderlist = [1 4 5]; % NLCE order list to be plotted
-obs_string = 'onsite_pair';% Obseravable ('nd', 'ni').
+obs_string = 'nearest_pair';% Obseravable 'density', 'doublon', 'triplon', 'onsite_pair', 'nearest_pair'.
 %Obtain the experimental data. Comment it out if same as the fit
 %observable.
 stringArray = {obs_string};
@@ -156,7 +154,7 @@ end
 directories = {"../experimental_data", "../reexperimentaldata", "../experimental_data_Jul23", "../experimental_data_Jul29"};
 filepath = searchForFile(directories,stringArray);
 data = readmatrix(filepath,"FileType","text","NumHeaderLines",1);
-if strcmp(obs_string,"doublon") || strcmp(obs_string,"onsite_pair")
+if strcmp(obs_string,"doublon") || strcmp(obs_string,"onsite_pair") || strcmp(obs_string,"nearest_pair")
     temp = data(:,2);
     data(:,2) = data(:,3);
     data(:,3) = temp;
@@ -165,12 +163,13 @@ end
 xstring = 'r'; % plot against r or total density. Update to auto convert to the correct values.
 scales = {'linear', 'linear'}; % xsale,yscale
 
-keys = {'density','doublon','triplon','onsite_pair'};
+keys = {'density','doublon','triplon','onsite_pair','nearest_pair'};
 vals = { 
     {'1', '2', '3'},
     {'12', '13' ,'23'},
     {'Triplon'},
-    {'12', '13', '23'}
+    {'12', '13', '23'},
+    {'12','13', '23'}
     };
 obs_label = containers.Map(keys,vals);
 obs_arr = eval(obs_string);
@@ -186,12 +185,12 @@ end
 
 figure;
 colorlist  = {'blue', 'green', 'red', 'cyan'};
-vals = {'density', 'doublon','triplon','onsite correlation'};
+vals = {'density', 'doublon','triplon','onsite correlation','nn correlation'};
 ylabel_list = containers.Map(keys,vals);
 ylabel_list('var_n') = 'var_n';
 
 plots = {};
-vals = {1:m, 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)*(m-2)/6), 1:uint8(m*(m-1)/2)};
+vals = {1:m, 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)*(m-2)/6), 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)/2)};
 flavor_list = containers.Map(keys,vals);
 flavor_list('var_n') = 1; 
 for i=flavor_list(obs_string)
@@ -478,6 +477,7 @@ end
 function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_files)
     rev_pair_idx = [1,2;1,3;2,3];
     itemlist = cellfun(@(x) x, observables, 'UniformOutput',false);
+    item_nums = length(itemlist);
     % itemlist{end + 1} = 'fileio';
     for i=1:numel(itemlist)
         if strcmp(itemlist{i},"density")
@@ -510,8 +510,8 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
             filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/' key],'');
             filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED.mat"],' '); % name of file that saves the output
             if any(cellfun(@(x) strcmp(x, "nearest_pair"), itemlist))
-                itemlist{end + 1} = side1;
-                itemlist{end + 1} = side2;
+                itemlist{item_nums + 1} = side1';
+                itemlist{item_nums + 2} = side2';
             end
             try
                 disp(['Try to find ED data for graph ', num2str(key), '...']);
@@ -557,7 +557,7 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                 % Dynamically assign variables to the workspace
                 varNames = fieldnames(dynamicVars);
                 for i = 1:length(varNames)
-                    assignin('base', varNames{i}, dynamicVars.(varNames{i}));
+                    feval(@()assignin('caller', varNames{i}, dynamicVars.(varNames{i})));
                 end
                 % [timer_count, spectra, nsigmapermute, testn, nimatrix, domatrix] = ED_solver(g{k},t,u,n,m,dno,itemlist{:});
                 disp(['ED calculation for graph ', num2str(key), ' finished.']);
@@ -603,15 +603,16 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                         end
                         % density_sq_accum(m+1) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn,cellfun(@(x) x{m+1},ni2matrix,'UniformOutput',false));
                         doaccum = zeros(1,uint8(m*(m-1)/2));
-                        onsite_cor_accum = zeros(1,uint8(m*(m-1)/2));
+                        nearest_pair_accum = zeros(1,uint8(m*(m-1)/2));
                         % ninjaccum = zeros(1,uint8(m*(m-1)/2));
                         for pair_idx = 1:uint8(m*(m-1)/2)
                             pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
                             doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
-                            onsite_cor_accum(pair_idx) = doaccum(pair_idx) - densityaccum(rev_pair_idx(pair_idx,1)) * densityaccum(rev_pair_idx(pair_idx,2));
+                            % onsite_cor_accum(pair_idx) = doaccum(pair_idx);
                             if l>1
                                 ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
-                                nearest_pair_accum(pair_idx) = (LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix));
+                                nn_correlator_accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
+                                nearest_pair_accum(pair_idx) = sum(nn_correlator_accum(:));
                             else
                                 nearest_pair_accum = zeros(1,uint8(m*(m-1)/2));
                             end
@@ -631,11 +632,11 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                         %cnnaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, cnn) ;
                         %ninjaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj);
                         %  CTlist(end + 1, :) = [T mu0 densityaccum doaccum energyaccum entropyaccum cnnaccum' ninjaccum'];
-                        alist(end + 1, :) = [densityaccum(:)' doaccum(:)' triaccum onsite_cor_accum(:)' nearest_pair_accum(:)'];
+                        alist(end + 1, :) = [densityaccum(:)' doaccum(:)' triaccum nearest_pair_accum(:)'];
                     end
                 end
-                % nlce = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/" ,key],'');
-                % nlce = join([nlce, " t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'LDA.mat'],' ');
+                nlce = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/" ,key],'');
+                nlce = join([nlce, " t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'LDA.mat'],' ');
                 mulist = muq; %To ensure the correct mus are used
                 Tlist = Tarray;
                 save(nlce,'alist','mulist','Tlist');
@@ -663,13 +664,17 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
         
         if exist("NLCE_onsite_pair",'var') == 1
             for idx = 1:uint8(m*(m-1)/2)
-                NLCE_onsite_pair(idx,:,:,order) = reshape(CTlist(:, m+uint8(m*(m-1)/2)+1+idx),[size(muq,1),numel(Tarray)])';
+                NLCE_onsite_pair(idx,:,:,order) = NLCE_doublon(idx,:,:,order) -  NLCE_density(rev_pair_idx(idx,1),:,:,order).*NLCE_density(rev_pair_idx(idx,2),:,:,order);
             end
         end
 
         if exist("NLCE_nearest_pair",'var') == 1
-            for idx = 1:uint8(m*(m-1)/2)
-                NLCE_nearest_pair(idx,:,:,order) = reshape(CTlist(:, m+uint8(m*(m-1)/2)+1+uint8(m*(m-1)/2)+idx),[size(muq,1),numel(Tarray)])';
+            if l>1
+                for idx = 1:uint8(m*(m-1)/2)
+                    NLCE_nearest_pair(idx,:,:,order) = 1/2*reshape(CTlist(:, m+uint8(m*(m-1)/2)+1+idx),[size(muq,1),numel(Tarray)])' - NLCE_density(rev_pair_idx(idx,1),:,:,order).*NLCE_density(rev_pair_idx(idx,2),:,:,order);
+                end
+            else
+                NLCE_nearest_pair(:,:,:,order) = 0;
             end
         end
 
@@ -694,10 +699,22 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
         end
     end
     varOutputs = struct();
-    varOutputs.density = NLCE_density;
-    varOutputs.doublon = NLCE_doublon;
-    varOutputs.triplon = NLCE_triplon;
-    varOutputs.onsite_pair = NLCE_onsite_pair;
+    if exist("NLCE_density",'var')==1
+        varOutputs.density = NLCE_density;
+    end
+    if exist("NLCE_doublon",'var')==1
+        varOutputs.doublon = NLCE_doublon;
+    end
+    if exist("NLCE_triplon",'var')==1
+        varOutputs.triplon = NLCE_triplon;
+    end
+    if exist("NLCE_onsite_pair",'var')==1
+        varOutputs.onsite_pair = NLCE_onsite_pair;
+    end
+    if exist("NLCE_nearest_pair",'var')==1
+        varOutputs.nearest_pair = NLCE_nearest_pair;
+    end
+    
 
 end
 
