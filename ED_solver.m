@@ -424,41 +424,11 @@ for scidx = 1:nsigmalen
             nsigmapermute(end + 1) = permuteno;
 
             clear('nsigmaspectra', 'nsigmaeigenstates');
-            if io
-              
-                save(filename, 'spectra', 'nsigmapermute', 'testn', '-v7.3');
-
-                if ni
-                    save(filename, 'nimatrix', '-append');
-                end
-                if ni2
-                    save(filename, 'ni2matrix', '-append');
-                end
-                if do
-                    save(filename, 'domatrix', '-append');
-                end
-                if tri
-                    save(filename, 'trimatrix', '-append');
-                end
-
-                if nn
-                    save(filename, 'cnn', 'ninj', '-append');
-                end
-
-                % if scidx ~= nsigmalen
-                clear('spectra','nsigmapermute', 'testn', 'nimatrix', 'domatrix','trimatrix', 'cnn', 'ninj');
-                % end
-            end
-        % end
+          
         clear('tmatrix', 'basisvector', 'onsiteparticleno', 'originalonsitptclno', 'onsiteinteraction');
     end
 end
 
-if io
-    try
-        load(filename);
-    end
-end
 timer_count = toc(timer_count);
 
 %saving the outputs in a struct
@@ -484,16 +454,15 @@ if numel(varargin)
         output.domatrix = domatrix;
     end
     if tri
-        outputs.trimatrix = trimatrix;
+        output.trimatrix = trimatrix;
     end
     if nn
         % outputs{end + 1} = cnn;
-        outputs.ninj = ninj;
+        output.ninj = ninj;
     end
 
-if ~io
-    save(filename, 'outputs', '-v7.3'); % save all result of the ED
-end
+save(filename, 'output', '-v7.3'); % save all result of the ED
+
 
 % output = outputs;
 

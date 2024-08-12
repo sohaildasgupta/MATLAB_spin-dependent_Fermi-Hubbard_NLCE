@@ -66,8 +66,8 @@ for i = 1:runs
     [fittingParams, renorm,residual,exitflag,output,lambda,J] = lsqcurvefit(@(fitParams,x) obs_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData,[1,-10,-10,-10],[5,10,10,10],options);
     fitvals(:,i) = fittingParams;
    % Compute the confidence intervals
-    alpha = 0.05; % 95% confidence level
-    ci = nlparci(fittingParams, residual, 'jacobian', J, 'alpha', alpha);
+    % alpha = 0.05; % 95% confidence level
+    % ci = nlparci(fittingParams, residual, 'jacobian', J, 'alpha', alpha);
 end
 fitGuess = mean(fitvals,2)';
 %% Bootstrapping to the desired order
@@ -102,7 +102,7 @@ writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
 %% Generate the NLCE sum
-order_max = 2;
+order_max = 1;
 orderlist = 1:order_max;
 obs_list = {"density","doublon","triplon","onsite_pair","nearest_pair"};
 uoffset = [0 0 0];
@@ -114,8 +114,8 @@ unew = u + uoffset;
 % v=0;
 
 % density = atomic_limit_calc(unew,m,muq,Tarray,"density");
-muq = [0,0,0];
-Tarray = [2];
+% muq = [0,0,0];
+% Tarray = [2];
 varOutputs = NLCE_sum(t,unew,m,n,dno,obs_list,orderlist,muq,Tarray,false); % 4D double [m,mu,T,order]
 varouts = fieldnames(varOutputs);
 for i = 1:length(varouts)
@@ -136,7 +136,7 @@ mu_at = mean(fitvals(2:4,:),2)'+ [0 0 0];
 interactive_plot(mu_at, r, t, u, m, n, dno, tunneling, omega, data, obs_string); 
 %% Plot
 save = false;
-plot_order = 3;
+plot_order = 1;
 confidence_interval = false;
 
 % Plot parameters
@@ -478,7 +478,7 @@ end
 function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save_files)
     rev_pair_idx = [1,2;1,3;2,3];
     itemlist = cellfun(@(x) x, observables, 'UniformOutput',false);
-    itemlist{end + 1} = 'fileio';
+    % itemlist{end + 1} = 'fileio';
     for i=1:numel(itemlist)
         if strcmp(itemlist{i},"density")
             NLCE_density = zeros(m,size(muq,1),numel(Tarray),numel(orderlist));
@@ -509,7 +509,7 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
             % side1 = [side1' 1:l]; side2 = [side2' 1:l]; %on-site correlator
             filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/' key],'');
             filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED.mat"],' '); % name of file that saves the output
-            if any(strcmp(itemlist, "nearest_pair"))
+            if any(cellfun(@(x) strcmp(x, "nearest_pair"), itemlist))
                 itemlist{end + 1} = side1;
                 itemlist{end + 1} = side2;
             end
@@ -517,6 +517,10 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                 disp(['Try to find ED data for graph ', num2str(key), '...']);
                 % clear('output');
                 load(filename);
+                varNames = fieldnames(output);
+                for i = 1:length(varNames)
+                    feval(@()assignin('caller', varNames{i}, output.(varNames{i})));
+                end
                 for idx = 1:numel(itemlist)
                     if strcmp(itemlist{idx},"density")
                         if ~exist("nimatrix",'var')
@@ -607,9 +611,9 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                             onsite_cor_accum(pair_idx) = doaccum(pair_idx) - densityaccum(rev_pair_idx(pair_idx,1)) * densityaccum(rev_pair_idx(pair_idx,2));
                             if l>1
                                 ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
-                                nearest_pair_accum = (LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix));
+                                nearest_pair_accum(pair_idx) = (LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix));
                             else
-                                nearest_pair_accum = zeros(uint8(m*(m-1)/2));
+                                nearest_pair_accum = zeros(1,uint8(m*(m-1)/2));
                             end
                         %     if l>1
                         %         ninjaccum(pair_idx) = sum(correlatoraccum(1:numEdge)) - 1/l^2*numEdge*densityaccum(rev_pair_idx(pair_idx,1))*densityaccum(rev_pair_idx(pair_idx,2)); %nearest-neighbor
@@ -660,6 +664,12 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
         if exist("NLCE_onsite_pair",'var') == 1
             for idx = 1:uint8(m*(m-1)/2)
                 NLCE_onsite_pair(idx,:,:,order) = reshape(CTlist(:, m+uint8(m*(m-1)/2)+1+idx),[size(muq,1),numel(Tarray)])';
+            end
+        end
+
+        if exist("NLCE_nearest_pair",'var') == 1
+            for idx = 1:uint8(m*(m-1)/2)
+                NLCE_nearest_pair(idx,:,:,order) = reshape(CTlist(:, m+uint8(m*(m-1)/2)+1+uint8(m*(m-1)/2)+idx),[size(muq,1),numel(Tarray)])';
             end
         end
 
@@ -718,6 +728,10 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
             disp(['Try to find ED data for graph ', num2str(key), '...']);
             try
                 load(filename); % try to load result of the ED to one given graph
+                varNames = fieldnames(output);
+                for i = 1:length(varNames)
+                    feval(@()assignin('caller', varNames{i}, output.(varNames{i})));
+                end
                 disp(['ED data for graph ',num2str(key), ' found.']);
             catch
                 disp(['ED data for graph ', num2str(key), ' not found. Start to calculate ED.']);
@@ -730,7 +744,7 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                 % Dynamically assign variables to the workspace
                 varNames = fieldnames(dynamicVars);
                 for i = 1:length(varNames)
-                    assignin('base', varNames{i}, dynamicVars.(varNames{i}));
+                    feval(@()assignin('caller', varNames{i}, dynamicVars.(varNames{i})));
                 end
                 disp(['ED calculation for graph ', num2str(key), ' finished.']);
                 disp(timer_count);
