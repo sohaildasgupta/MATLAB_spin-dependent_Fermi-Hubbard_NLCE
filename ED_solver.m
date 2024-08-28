@@ -1,4 +1,4 @@
-function output = ED_solver(graph, t, u, n, m, dno, varargin)
+function output = ED_solver(graph, t, u, n, m, dno,filename, varargin)
 %
 % ED_solver - solve ED of a given graph or lattice size with different parameters and arguments
 %
@@ -41,7 +41,7 @@ function output = ED_solver(graph, t, u, n, m, dno, varargin)
 %
 [ni, ni2, do, tri, p2, nn, io, sun_symm] = deal(false);
 itemlist = {};
-if all(u == u(1))
+if isscalar(u)
     sun_symm = true;
 end
 sun_symm = false;
@@ -103,9 +103,6 @@ disp(join([key, "l=", l, "t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=
 orderlist = [side1 side2];
 
 disp(join(["Output options :", itemlist]));
-filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/' key],'');
-filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'ED.mat'],' '); % name of file that saves the output
-
 nsigmatuples = unique(sort(permn(0:l, m), 2), 'row'); % for
 if dno >= 0
     if 0 <= n && n <= l + dno
@@ -382,11 +379,11 @@ for scidx = 1:nsigmalen
                     if ~sun_symm
                         ni_mean = {};
                         for spin_idx = 1:m
-                            ni_mean{end+1} = sum(basisvector(:,:,spin_idx),2)' * abs(nsigmaeigenstates).^2;
+                            ni_mean{end+1} = basisvector(:,:,spin_idx)' * abs(nsigmaeigenstates).^2;
                         end
                         nimatrix{end + 1} = ni_mean;
                     else
-                        nimatrix{end+1} = permuteno * sum(onsiteparticleno,2)' * abs(nsigmaeigenstates).^2;
+                        nimatrix{end+1} = permuteno * onsiteparticleno' * abs(nsigmaeigenstates).^2;
                     end
                 end
                 if ni2 %assuming no sun_symm
