@@ -5,12 +5,13 @@
 
 %% ED Parameters 
 feature('numcores')
-t = 1; u = [1.9 -2.4 -2.7]; % U12, U13, U23
+t = 1; u = [7.9 13.7 1.8]; % U12, U13, U23
 m = 3;
 n = -1;
 dno = -1;
 % Dictionary to map  the pair indices to single integer values.
 rev_pair_idx = [1 2; 1 3; 2 3];
+
 %% Obtaining the experimental data
 obs_string = 'density'; % Update to a list of observables.
 stringArray = {obs_string};
@@ -40,10 +41,19 @@ r = rdata(:,1);
 % Extract HTE0 fit from file (mu0's, T, lattice confinement and tunneling)
 [dirPath,~,~] = fileparts(r_file);
 parameter_file_path = fullfile(dirPath,'Parameters.txt');
-[mu0, T, omega, tunneling] = find_mu0_vals(parameter_file_path,u,m);
+[mu0, T, omega, tunneling, N] = find_exp_params(parameter_file_path,u,m);
+mfermion = 6*1.66054e-27; %mass of a Li6 atom in kg
+trap_laser = 752e-9; % Frequency of the trapping laser (in nm)
+h = 6.62607015e-34; % Planck's constant in J-s
+R = max(r); % radius of the trapped disc
 
-%% Non-interacting limit
-
+%Compute the number of particles
+if strcmp(obs_string,'density')
+    N_comp = zeros(1,m);
+    for i=1:m
+        N_comp(i) = trapz(r,data(:,i+1).*2*pi.*r);
+    end
+end
 %% Atomic Limit fit results
 % T = mean(fitvals(1,:)) + 10;
 % obs_string = 'doublon';
@@ -61,7 +71,7 @@ interactive_plot(mu_at, r, t, u, m, n, dno, tunneling, omega, data, obs_string);
 
 %% Fitting data (atomic limit fit)
 % obs_string = 'density';
-indices = find(r<45);
+indices = find(r<70);
 % weights = ones(1,numel(r));
 % weights(find(r<20)) = 2*weights(find(r<20));
 xData = r(indices);
@@ -100,6 +110,58 @@ fprintf(fileID, "T/t = %s\n", num2str(fitGuess(1)));
 fprintf(fileID, "mu0/t = %s\n", num2str(fitGuess(2:end)));
 fclose(fileID);
 
+%% Non-interacting limit
+T = fitGuess(1);
+mu0_non_int = zeros(1,m);
+
+% Relevant functions to compute the density and particle numbers as a
+% function of different parameters
+
+% E(kx,ky)
+e = @(kx,ky) -2*(cos(kx) + cos(ky)); 
+
+% fermi-function
+fermi = @(kx,ky,mu) 1./(1 + exp(1/T*(e(kx,ky)-mu)));
+
+% rho(mu)
+rho = @(mu) integral2(@(kx,ky) 1/(2*pi)^2*fermi(kx,ky,mu), -pi,pi,-pi,pi);
+
+% F(kx,ky,mu) = int_r fermi(kx,ky,mu0-.5ar^2)
+f = @(kx,ky,mu0_ni) log((1 + exp(1/T*(-e(kx,ky) + mu0_ni))));%./(1 + exp(1/T*(-e(kx,ky) + mu0_ni-.5*mfermion*(2*pi*omega)^2*(R*trap_laser)^2/(h*tunneling)))));
+% N(mu0)
+particles = @(mu0_ni) T/(2*pi*mfermion*(2*pi*omega*trap_laser)^2/(h*tunneling))*integral2(@(kx,ky) f(kx,ky,mu0_ni),-pi,pi,-pi,pi);
+
+for i=1:m
+    equation = @(x) particles(x) - N(i);
+    initial_guess = fitGuess(i+1);
+    mu0_non_int(i) = fzero(equation, initial_guess);
+end
+
+% Observables
+% x = linspace(0,50,100)';
+non_int_density = zeros(numel(r),m);
+non_int_doublon = zeros(numel(r),uint8(m*(m-1)/2));
+non_int_triplon = zeros(numel(r),uint8(m*(m-1)*(m-2)/6));
+non_int_onsite_pair = zeros(numel(r),uint8(m*(m-1)/2));
+non_int_nearest_pair = zeros(numel(r),uint8(m*(m-1)/2)); % Different flavors
+for i=1:numel(r)
+    mu = mu0_non_int - .5*mfermion*(2*pi*omega*r(i)*trap_laser)^2/(h*tunneling);
+    for j=1:m
+        non_int_density(i,j) = rho(mu(j));
+    end
+    for j=1:uint8(m*(m-1)/2)
+        non_int_doublon(i,j) = rho(mu(rev_pair_idx(j,1)))*rho(mu(rev_pair_idx(j,2)));
+    end
+    non_int_triplon(i) = rho(mu(1))*rho(mu(2))*rho(mu(3));
+end
+
+%% Compute the number of particles
+if strcmp(obs_string,'density')
+    N_comp_ni = zeros(1,m);
+    for i=1:m
+        N_comp_ni(i) = trapz(r,2*pi*r.*non_int_density(:,i));
+    end
+end
 %% Bootstrapping to the desired order
 order_max = 3;
 % obs_string = 'density';
@@ -113,17 +175,17 @@ for fit_order = 2:order_max
 end
 %% mu-T grid
 muq = zeros(numel(r),m);
-offset = [0 0 0 0];
+muq_ni = zeros(numel(r),m); % non-int limit
 % My trial fitting parameters by hand.
 % fittingParams = [4 8 5.8 6.2];
 for i=1:m
     % muq(:,i) =  fittingParams(i+1) + offset(i+1) - .5*fittingParams(4+i)*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
     muq(:,i) =  fittingParams(i+1) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
-
+    muq_ni(:,i) = mu0_non_int(i) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
     % 752 nm is the lattice spacing distance.
 end
 %muq = linspace(-25,5,100); % balanced mus. can be changed for unbalanced case.
-Tarray = [fittingParams(1)+offset(1)];
+Tarray = [fittingParams(1)];
 % Tarray = [4];
 
 mu_file = join(['../data/csv_files/N=',num2str(m), '/u=', ustr, '_mus.csv'],'');
@@ -136,28 +198,13 @@ clear("mu_file","T_file");
 order_max = 5;
 orderlist = 1:order_max;
 obs_list = {"density","doublon","triplon","onsite_pair","nearest_pair"};
-uoffset = [0 0 0];
-unew = u + uoffset;
+u = u;
 
-% use these to generate the ED
-% Tarray = [10];
-% muq = [0,0,0]; 
-% v=0;
-
-%non-interacting
-varOutputs = NLCE_sum(t,[0,0,0],m,n,dno,obs_list,orderlist,muq,Tarray,false);
-varouts = fieldnames(varOutputs);
-for i=1:length(varouts)
-    assignin('base',"non_int"+varouts{i},varOutputs.(varouts{i}));
-end
-
-% density = atomic_limit_calc(unew,m,muq,Tarray,"density");
-varOutputs = NLCE_sum(t,unew,m,n,dno,obs_list,orderlist,muq,Tarray,true); % 4D double [m,mu,T,order]
+varOutputs = NLCE_sum(t,u,m,n,dno,obs_list,orderlist,muq,Tarray,true); % 4D double [m,mu,T,order]
 varouts = fieldnames(varOutputs);
 for i = 1:length(varouts)
     assignin('base', varouts{i}, varOutputs.(varouts{i}));
 end
-
 
  %% Plot
 save = true;
@@ -171,7 +218,7 @@ scales = {'linear', 'linear'}; % xsale,yscale
 % Plot parameters
 % temperature_cut = T; % units of t.
 % orderlist = [1 4 5]; % NLCE order list to be plotted
-obs_string = ['nearest_pair'];% Obseravable 'density', 'doublon', 'triplon', 'onsite_pair', 'nearest_pair'.
+obs_string = ['onsite_pair'];% Obseravable 'density', 'doublon', 'triplon', 'onsite_pair', 'nearest_pair'.
 %Obtain the experimental data. Comment it out if same as the fit
 %observable.
 stringArray = {obs_string};
@@ -227,7 +274,7 @@ vals = {
     };
 obs_label = containers.Map(keys,vals);
 obs_arr = eval(obs_string);
-non_int_obs_arr = eval("non_int"+obs_string);
+non_int_obs_arr = eval("non_int_"+obs_string);
 
 xsim = r;
 
@@ -275,7 +322,7 @@ for i=flavor_list(obs_string)
             % % atomic limit 
             plots{end + 1} = data_plot(xsim,obs_arr(:,1,1),'legend_string',sprintf("Atomic Limit"),'color',colorlist{i},'line_string',"--");
             % % non-interacting
-            plots{end + 1} = data_plot(xsim,non_int_obs_arr(:,1,1),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},'line_string',":");
+            plots{end + 1} = data_plot(r,non_int_obs_arr(:,1,1),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},'line_string',":");
         else
             if plot_order>2
                 % (n-1)th order NLCE
@@ -289,7 +336,7 @@ for i=flavor_list(obs_string)
             % % Atomic Limit
             plots{end + 1} = data_plot(xsim,obs_arr(i,:,1,1),'legend_string',sprintf("Atomic Limit"),'color',colorlist{i},'line_string',"--");
             % % non-interacting
-            plots{end + 1} = data_plot(xsim,non_int_obs_arr(i,:,1,plot_order),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},"line_string",":");
+            plots{end + 1} = data_plot(r,non_int_obs_arr(:,i),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},"line_string",":");
         end
         if confidence_interval
             % Plot the confidence bounds
@@ -597,17 +644,16 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                 load(nlce);
                 
                 %WARNING : This deletes previous data. Need a better check.
-                if ~isequal(mulist, muq, 'RelTol', 1e-6)
+                if ~isequal(mulist, muq)
                     disp("mu-list do not match, deleting nlce graph data...");
                     delete(nlce);
                     load(nlce);
                 end
-                if ~isequal(Tlist, Tarray, 'RelTol', 1e-6)
+                if ~isequal(Tlist, Tarray)
                     disp("T-list do not match, deleting nlce graph data...");
                     delete(nlce);
                     load(nlce);
                 end
-    
             catch
                 alist = [];
                 for T = Tarray
@@ -625,11 +671,9 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                         % density_sq_accum(m+1) = LDA_measure(spectra,deltamu,T,nsigmapermute,testn,cellfun(@(x) x{m+1},ni2matrix,'UniformOutput',false));
                         doaccum = zeros(1,uint8(m*(m-1)/2));
                         nearest_pair_accum = zeros(1,uint8(m*(m-1)/2));
-                        % ninjaccum = zeros(1,uint8(m*(m-1)/2));
                         for pair_idx = 1:uint8(m*(m-1)/2)
                             pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
                             doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
-                            % onsite_cor_accum(pair_idx) = doaccum(pair_idx);
                             if l>1
                                 ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
                                 nn_correlator_accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
@@ -637,27 +681,19 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
                             else
                                 nearest_pair_accum = zeros(1,uint8(m*(m-1)/2));
                             end
-                        %     if l>1
-                        %         ninjaccum(pair_idx) = sum(correlatoraccum(1:numEdge)) - 1/l^2*numEdge*densityaccum(rev_pair_idx(pair_idx,1))*densityaccum(rev_pair_idx(pair_idx,2)); %nearest-neighbor
-                        %     end
                         end
                         
                         for triplon_idx = 1:uint8(m*(m-1)*(m-2)/6)
                             triplon_matrix = cellfun(@(x) x{triplon_idx},trimatrix,'UniformOutput',false);
                             triaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, triplon_matrix);
                         end
-                        %energyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'energy') + mu0*sum(densityaccum) ;
-                        %energy_sq = LDA_measure(spectra ,deltamu, T, nsigmapermute, testn, 'energy_square');
-                        %cv_accum = 1/T^2*(energy_sq - energyaccum^2);
-                        %entropyaccum = LDA_measure( spectra, deltamu, T, nsigmapermute, testn, 'entropy') ;
-                        %cnnaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, cnn) ;
-                        %ninjaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj);
-                        %  CTlist(end + 1, :) = [T mu0 densityaccum doaccum energyaccum entropyaccum cnnaccum' ninjaccum'];
                         alist(end + 1, :) = [sum(densityaccum,1) doaccum(:)' triaccum nearest_pair_accum(:)'];
                     end
                 end
-                nlce = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/" ,key],'');
-                nlce = join([nlce, " t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, 'LDA.mat'],' ');
+                nlce_path = join(["../data/mat_files/NLCE_mat_files/N=",num2str(m),"/"],'');
+                nlce_filename = join([key," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "LDA"],' ');
+                nlce_filename = strrep(nlce_filename,'.','p');
+                nlce = join([nlce_path,nlce_filename,".mat"],"");
                 mulist = muq; %To ensure the correct mus are used
                 Tlist = Tarray;
                 save(nlce,'alist','mulist','Tlist');
@@ -980,13 +1016,13 @@ function [closestValue, index] = findClosestValue(array, target)
     closestValue = array(index);
 end
 
-function [mu0, T, omega, tunneling] = find_mu0_vals(filepath, u, m)
+function [mu0, T, omega, tunneling, N] = find_exp_params(filepath, u, m)
     
     % Open the file for reading
     fileID = fopen(filepath, 'r');
     
     % Initialize variables to store the result
-    mu0 = []; T = NaN; omega = NaN; tunneling = NaN;
+    mu0 = []; T = NaN; omega = NaN; tunneling = NaN; N = [];
 
     % Define the string pattern after which "mu1" should occur
     exp_u = [u(2) u(1) u(3)]; % experiment data has U13 U12 U23.
@@ -1053,6 +1089,28 @@ function [mu0, T, omega, tunneling] = find_mu0_vals(filepath, u, m)
     nextLine = fgetl(fileID);
     if contains(nextLine,"x ")
         omega = str2double(regexp(nextLine, 'x (\d+\.?\d*)', 'tokens', 'once'));
+    end
+
+    %Look for "(n1,n2,n3) = <number> "
+    nextLine = fgetl(fileID);
+    if contains(nextLine,"(n1,n2,n3)")
+        % Define a regular expression pattern to extract the numbers
+        pattern = '\(([^)]+)\)'; % Pattern to match content inside parentheses
+        
+        % Extract the content inside parentheses
+        matches = regexp(nextLine, pattern, 'match');
+        
+        % Extract the numbers from the second match (right-hand side of the equation)
+        numbers_str = matches{2};  % Get the second matched group, which contains the numbers
+        
+        % Remove the parentheses
+        numbers_str = numbers_str(2:end-1);
+        
+        % Split the string by commas to get individual number strings
+        number_cells = strsplit(numbers_str, ',');
+        
+        % Convert the cell array of strings to an array of numbers
+        N = str2double(number_cells);
     end
     
     % Close the file
