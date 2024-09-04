@@ -348,6 +348,7 @@ for scidx = 1:nsigmalen
                         
                         if ~sun_symm
                             ninj_mean = {};
+                            %different spin
                             for idx = 1:m
                                 for jdx = idx+1:m
                                     if l>1
@@ -355,6 +356,14 @@ for scidx = 1:nsigmalen
                                     else
                                         ninj_mean{end + 1} = 0;
                                     end
+                                end
+                            end
+                            %same spin
+                            for idx=1:m
+                                if l>1
+                                    ninj_mean{end + 1} = (basisvector(:,posi,idx) .* basisvector(:,posj,idx))' * abs(nsigmaeigenstates).^2;
+                                else
+                                    ninj_mean{end + 1} = 0;
                                 end
                             end
                             ninj{end + 1} = ninj_mean;
