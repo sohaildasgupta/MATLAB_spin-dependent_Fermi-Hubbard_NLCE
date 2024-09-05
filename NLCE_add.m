@@ -5,7 +5,7 @@
 
 %% ED Parameters 
 feature('numcores')
-t = 1; u = [7.9 13.7 1.8]; % U12, U13, U23
+t = 1; u = [1.9 -2.4 -2.7]; % U12, U13, U23
 m = 3;
 n = -1;
 dno = -1;
@@ -13,8 +13,18 @@ dno = -1;
 rev_pair_idx = [1 2; 1 3; 2 3];
 
 %% Obtaining the experimental data
-obs_string = 'density'; % Update to a list of observables.
-stringArray = {obs_string};
+obs_string_arr = {'density','doublon','triplon','nearest_pair'}; 
+directories = {"../experimental_data", "../reexperimentaldata", "../experimental_data_Jul23", "../experimental_data_Jul29"};
+col_keys = {'density','doublon','triplon','onsite_pair','nearest_pair'};
+col_vals = {m, uint8(m*(m-1)/2), uint8(m*(m-1)*(m-2)/6), uint8(m*(m-1)/2), uint8(m*(m-1)/2)};
+col_map = containers.Map(col_keys,col_vals);
+col_nums = 0;
+for i=1:numel(obs_string_arr)
+    col_nums = col_nums + col_map(obs_string_arr{i});
+end
+
+% distance from center of trap (Find how many elements)
+stringArray{1} = 'density';
 for i = 1:numel(u)
     if mod(u(i), 1) == 0  % Check if the number is an integer
         stringArray{end+1} = num2str(u(i));
@@ -22,22 +32,30 @@ for i = 1:numel(u)
         stringArray{end+1} = strrep(sprintf('%.1f', u(i)), '.', 'p');
     end
 end
-directories = {"../experimental_data", "../reexperimentaldata", "../experimental_data_Jul23", "../experimental_data_Jul29"};
-filepath = searchForFile(directories,stringArray);
-data = readmatrix(filepath,"FileType","text","NumHeaderLines",1);
-% ni_data = obtain_exp_data("../experimental_data_Jul23",'1comp',u);
-% nd_data = obtain_exp_data("../experimental_data_Jul23",'doublon',u);
-if strcmp(obs_string,'doublon') || strcmp(obs_string,'onsite_pair') || strcmp(obs_string,'nearest_pair')
-    temp = data(:,2);
-    data(:,2) = data(:,3);
-    data(:,3) = temp;
-end
-% distance 
-stringArray{1} = 'density';
 r_file = searchForFile(directories,stringArray);
-rdata = readmatrix(r_file,"FileType","text","NumHeaderLines",1);
-r = rdata(:,1);
+read_data = readmatrix(r_file,"FileType","text","NumHeaderLines",1);
+r = read_data(:,1);
+data = zeros(numel(r),col_nums);
+data(:,1:m) = read_data(:,2:2+m-1);
+column_number = m; % counter to assign the correct column;
+%Obtain all the observable data for the joint-fit
+for i = 2:numel(obs_string_arr)
+    obs_string = obs_string_arr{i};
+    stringArray = {obs_string};
+    filepath = searchForFile(directories,stringArray);
+    read_data = readmatrix(filepath,"FileType","text","NumHeaderLines",1);
+    if strcmp(obs_string,'doublon') || strcmp(obs_string,'onsite_pair') || strcmp(obs_string,'nearest_pair')
+        data(:,column_number+1) = read_data(1:numel(r),3);
+        data(:,column_number+2) = read_data(1:numel(r),2);
+        data(:,column_number+3) = read_data(1:numel(r),4); % FIX for m>3. 
+        column_number = column_number + m;
+    elseif strcmp(obs_string,'triplon')
+        data(:,column_number + 1) = read_data(:,2);
+        column_number = column_number + 1;
+    end
+end
 
+norm_data = data./vecnorm(data);
 % Extract HTE0 fit from file (mu0's, T, lattice confinement and tunneling)
 [dirPath,~,~] = fileparts(r_file);
 parameter_file_path = fullfile(dirPath,'Parameters.txt');
@@ -57,7 +75,7 @@ end
 %% Atomic Limit fit results
 % T = mean(fitvals(1,:)) + 10;
 % obs_string = 'doublon';
-mu_at = mean(fitvals(2:4,:),2)'+ [0 0 0];
+% mu_at = mean(fitvals(2:4,:),2)'+ [0 0 0];
 % Cfit = mean(fitvals(5,:));
 % muq = zeros(numel(r),m);
 % offset = [0 0 0 0];
@@ -67,20 +85,20 @@ mu_at = mean(fitvals(2:4,:),2)'+ [0 0 0];
 %     muq(:,i) =  mu_at(i) - .5*(6*1.66054e-27)*(2*pi*omega)^2*(r*752*10^-9).^2/(6.62607015e-34*tunneling); 
 % end
 % [density_at] = NLCE_sum(t, unew, m, n, dno, {"density"}, 1:1, muq, [T], false);
-interactive_plot(mu_at, r, t, u, m, n, dno, tunneling, omega, data, obs_string); 
+% interactive_plot(mu_at, r, t, u, m, n, dno, tunneling, omega, data, obs_string); 
 
-%% Fitting data (atomic limit fit)
+%% Single observable Fit  (atomic limit fit)
 % obs_string = 'density';
 indices = find(r<70);
 % weights = ones(1,numel(r));
 % weights(find(r<20)) = 2*weights(find(r<20));
 xData = r(indices);
-if strcmp(obs_string, 'triplon')
-    yData = data(indices,2);
-else
-    yData = data(indices,2:4);
-end
-
+% if strcmp(obs_string, 'triplon')
+%     yData = data(indices,2);
+% else
+%     yData = data(indices,2:4);
+% end
+yData = data(indices,1:m);
 % atmoic limit fit. statistics to makes sure, not getting stuck in local
 % minimum.
 runs = 5;
@@ -92,7 +110,7 @@ for i = 1:runs
     initialGuess = [TGuess(i), muguess(:,i)'];  
     % initialGuess = [22, 45, 39, 44, 2.5]; % set by hand after fit-by-eye
     options = optimoptions('lsqcurvefit' ,'OptimalityTolerance', 1e-6,'MaxIterations',10000,'FunctionTolerance',1e-6, 'Algorithm','trust-region-reflective','Display','off');
-    otherParams = {t,u,m,n,dno,1,tunneling, omega, obs_string};
+    otherParams = {t,u,m,n,dno,1,tunneling, omega, {'density'}};
     [fittingParams, renorm,residual,exitflag,output,lambda,J] = lsqcurvefit(@(fitParams,x) obs_vs_r_fitting_function(x,fitParams,otherParams), initialGuess, xData, yData,[1,-10,-10,-10],[5,10,10,10],options);
     fitvals(:,i) = fittingParams;
    % Compute the confidence intervals
@@ -164,10 +182,11 @@ if strcmp(obs_string,'density')
     end
 end
 %% Bootstrapping to the desired order
-order_max = 3;
-% obs_string = 'density';
+order_max = 6;
+obs_string_arr = {'density','doublon','triplon','nearest_pair'};
+yData = data(indices,1:m);
 for fit_order = 2:order_max
-    otherParams = {t,u,m,n,dno,fit_order,tunneling, omega, obs_string};
+    otherParams = {t,u,m,n,dno,fit_order,tunneling, omega, {'density'}};
     [fittingParams, resnorm, residual, exitflag, output, lambda, J] = lsqcurvefit(@(fitParams,x) obs_vs_r_fitting_function(x,fitParams,otherParams), fitGuess, xData, yData,[1,-10,-10,-10],[5,10,10,10],options);
     fitGuess = fittingParams;
     % Compute the confidence intervals
@@ -196,7 +215,7 @@ writematrix(Tarray,T_file);
 clear("mu_file","T_file");
 
 %% Generate the NLCE sum
-order_max = 5;
+order_max = 6;
 orderlist = 1:order_max;
 obs_list = {"density","doublon","triplon","onsite_pair","nearest_pair"};
 
@@ -208,7 +227,7 @@ end
 
  %% Plot
 save = true;
-plot_order = 5;
+plot_order = 6;
 confidence_interval = false;
 data_str = true;
 non_int = true;
@@ -218,7 +237,7 @@ scales = {'linear', 'linear'}; % xsale,yscale
 % Plot parameters
 % temperature_cut = T; % units of t.
 % orderlist = [1 4 5]; % NLCE order list to be plotted
-obs_string = ['nearest_pair'];% Obseravable 'density', 'doublon', 'triplon', 'onsite_pair', 'nearest_pair'.
+obs_string = ['triplon'];% Obseravable 'density', 'doublon', 'triplon', 'onsite_pair', 'nearest_pair'.
 %Obtain the experimental data. Comment it out if same as the fit
 %observable.
 stringArray = {obs_string};
@@ -231,6 +250,20 @@ for i = 1:numel(u)
 end
 directories = {"../experimental_data", "../reexperimentaldata", "../experimental_data_Jul23", "../experimental_data_Jul29"};
 filepath = searchForFile(directories,stringArray);
+
+
+keys = {'density','doublon','triplon','onsite_pair','nearest_pair'};
+vals = { 
+    {'1', '2', '3'},
+    {'12', '13' ,'23'},
+    {'Triplon'},
+    {'12', '13', '23'},
+    {'12','13', '23','11', '22', '33'}
+    };
+obs_label = containers.Map(keys,vals);
+vals = {1:m, 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)*(m-2)/6), 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)/2)};
+flavor_list = containers.Map(keys,vals);
+flavor_list('var_n') = 1; 
 
 if data_str
     if strcmp(obs_string,'onsite_pair_check')
@@ -248,35 +281,36 @@ if data_str
         end
         obs_string = 'onsite_pair';
     else
-        data = readmatrix(filepath,"FileType","text","NumHeaderLines",1);
-        if strcmp(obs_string,"doublon") || strcmp(obs_string,"onsite_pair") || strcmp(obs_string,"nearest_pair")
-            temp = data(:,2);
-            data(:,2) = data(:,3);
-            data(:,3) = temp;
-            temp = data(:,5);
-            data(:,5) = data(:,6);
-            data(:,6) = temp;
+        try
+            data = readmatrix(filepath,"FileType","text","NumHeaderLines",1);
+            xdata = data(:,1);
+            ydata = data(:,1+flavor_list(obs_string));
+            yerror = data(:,numel(flavor_list(obs_string))+1+flavor_list(obs_string));
+            disp(sprintf("%s data read successfully.",obs_string));
+        catch
+            error_mesage = sprintf("%s data not found.",obs_string);
         end
-    end
-    xdata = data(:,1);
-    if strcmp(xstring,'r')
-        xdata = r;
+        if strcmp(obs_string,"doublon") || strcmp(obs_string,"onsite_pair") || strcmp(obs_string,"nearest_pair")
+            temp = ydata(:,1);
+            ydata(:,1) = ydata(:,2);
+            ydata(:,2) = temp;
+            temp = yerror(:,1);
+            yerror(:,1) = yerror(:,2);
+            yerror(:,2) = temp;
+        end
     end
 end
 
-keys = {'density','doublon','triplon','onsite_pair','nearest_pair'};
-vals = { 
-    {'1', '2', '3'},
-    {'12', '13' ,'23'},
-    {'Triplon'},
-    {'12', '13', '23'},
-    {'12','13', '23','11', '22', '33'}
-    };
-obs_label = containers.Map(keys,vals);
+
 obs_arr = eval(obs_string);
 non_int_obs_arr = eval("non_int_"+obs_string);
 
 xsim = r;
+if isscalar(u) || strcmp(obs_string,'triplon')
+    obs_arr = squeeze(obs_arr(:,1,:));
+else
+    obs_arr = squeeze(obs_arr(:,:,1,:));
+end
 
 if confidence_interval
     % Generate upper and lower bounds using confidence intervals of parameters
@@ -292,9 +326,7 @@ ylabel_list = containers.Map(keys,vals);
 ylabel_list('var_n') = 'var_n';
 
 plots = {};
-vals = {1:m, 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)*(m-2)/6), 1:uint8(m*(m-1)/2), 1:uint8(m*(m-1)/2)+m};
-flavor_list = containers.Map(keys,vals);
-flavor_list('var_n') = 1; 
+
 for i=flavor_list(obs_string)
     % experimental data
     if strcmp(obs_string,'var_n')
@@ -302,43 +334,44 @@ for i=flavor_list(obs_string)
         plots{end + 1} = data_plot(xdata,derived_variance_data,'legend_string',sprintf("n_%d",i),'color','red','legend_string','derived variance');
     else
         label = obs_label(obs_string);
-        if data_str
+        if data_str && ~exist("error_mesage",'var')
             if strcmp(obs_string,'nearest_pair') && i>uint8(m*(m-1)/2) % CHANGE IF same-species data is available
                 disp(sprintf("Data for nn corr %i%i not available",[i-m,i-m]));
             else
-                plots{end + 1} = data_plot(xdata,data(:,i+1),'yerr',data(:,i+uint8(m*(m-1)/2)+1),'color',colorlist{i},'legend_string',label{i});
+                plots{end + 1} = data_plot(xdata,ydata(:,i),'yerr',yerror(:,i),'color',colorlist{i},'legend_string',label{i});
             end
+        elseif data_str && exist("error_mesage",'var')
+            disp(error_mesage);
+            clear error_mesage;
         end
-        % plots{end + 1} = data_plot(r,density(i,:),'line_string','--','legend_string',sprintf("Atomic Limit"),'color',colorlist{i});
-        % inital guess atomic limit
-        % plots{end + 1} = data_plot(r,density_at(i,:,1,1),'line_string','--','color',colorlist{i},'legend_string',sprintf("Atomic limit fit"));
-        % set(plots{end},'HandleVisibility','off');
+       
         if strcmp(obs_string,'triplon')
             if plot_order>2
                 % (n-1)th order NLCE
-                plots{end + 1} = data_plot(xsim,obs_arr(:,1,max(1,plot_order-1)),'color',colorlist{i},'line_string',"-."); 
+                plots{end + 1} = data_plot(xsim,obs_arr(:,max(1,plot_order-1)),'color',colorlist{i},'line_string',"-."); 
                 set(plots{end},'HandleVisibility','off');
             end
             if plot_order>1
                 % % nth order NLCE
-                plots{end + 1} = data_plot(xsim,obs_arr(:,1,plot_order),'legend_string',sprintf("NLCE %d %s",[plot_order,label{i}]),'color',colorlist{i},'line_string',"-");
+                plots{end + 1} = data_plot(xsim,obs_arr(:,plot_order),'legend_string',sprintf("NLCE %d %s",[plot_order,label{i}]),'color',colorlist{i},'line_string',"-");
             end
             % % atomic limit 
-            plots{end + 1} = data_plot(xsim,obs_arr(:,1,1),'legend_string',sprintf("Atomic Limit"),'color',colorlist{i},'line_string',"--");
+            plots{end + 1} = data_plot(xsim,obs_arr(:,1),'legend_string',sprintf("Atomic Limit"),'color',colorlist{i},'line_string',"--");
             % % non-interacting
-            plots{end + 1} = data_plot(r,non_int_obs_arr(:,1,1),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},'line_string',":");
+            plots{end + 1} = data_plot(r,non_int_obs_arr(:,1),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},'line_string',":");
         else
             if plot_order>2
                 % (n-1)th order NLCE
-                plots{end + 1} = data_plot(xsim,obs_arr(i,:,1,max(1,plot_order-1)),'color',colorlist{i},'line_string',"-."); 
+                plots{end + 1} = data_plot(xsim,obs_arr(i,:,max(1,plot_order-1)),'color',colorlist{i},'line_string',"-."); 
                 % set(plots{end},'HandleVisibility','off');
             end
             if plot_order>1
                 % % nth order NLCE
-                plots{end + 1} = data_plot(xsim,obs_arr(i,:,1,plot_order),'legend_string',sprintf("NLCE %d %s",[plot_order,label{i}]),'color',colorlist{i},'line_string',"-");
+                plots{end + 1} = data_plot(xsim,obs_arr(i,:,plot_order),'legend_string',sprintf("NLCE %d %s",[plot_order,label{i}]),'color',colorlist{i},'line_string',"-");
             end
+        
             % % Atomic Limit
-            plots{end + 1} = data_plot(xsim,obs_arr(i,:,1,1),'legend_string',sprintf("Atomic Limit"),'color',colorlist{i},'line_string',"--");
+            plots{end + 1} = data_plot(xsim,obs_arr(i,:,1),'legend_string',sprintf("Atomic Limit"),'color',colorlist{i},'line_string',"--");
             % % non-interacting
             plots{end + 1} = data_plot(r,non_int_obs_arr(:,i),'legend_string',sprintf("Non Interacting"),'color',colorlist{i},"line_string",":");
         end
@@ -784,6 +817,7 @@ function varOutputs = NLCE_sum(t,u,m,n,dno,observables,orderlist,muq,Tarray,save
 end
 
 function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
+    % Returns normalized arrays of each observable
     % Assumes the ED files exist. Will not re-run the ED.
     T = fitParams(1);
     mu0 = fitParams(2:4);
@@ -792,7 +826,15 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
 
     t = otherParams{1}; u = otherParams{2}; m = otherParams{3}; n = otherParams{4};
     dno = otherParams{5}; order_max = otherParams{6}; tunneling = otherParams{7}; omega = otherParams{8};
-    obs_string = otherParams{9};
+    obs_string_arr = otherParams{9};
+    column_count = 0;
+    col_keys = {'density','doublon','triplon','nearest_pair'};
+    col_vals = {m,uint8(m*(m-1)/2),uint8(m*(m-1)*(m-2)/6),uint8(m*(m-1)/2)};
+    col_map = containers.Map(col_keys,col_vals);
+    for i=1:numel(obs_string_arr)
+        obs_string = obs_string_arr{i};
+        column_count = column_count + col_map(obs_string);
+    end
     
     mu = zeros(numel(x),m);
     for i = 1:m
@@ -806,7 +848,12 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
             l = numnodes(g{k});
             filename = join(['../data/mat_files/ED_mat_files/N=',num2str(m),'/', key],'');
             filename = join([filename," t=", double(t), "u=", double(u), "n=", n, "m=", m, "D=", dno, "ED.mat"],' '); % name of file that saves the output
-
+            if ismember('nearest_pair',{obs_string_arr{1:numel(otherParams{9})}})
+                [side1,side2] = findedge(g{k});
+                obs_string_arr{column_count + 1} = side1';
+                obs_string_arr{column_count + 2} = side2';
+                numEdge = numedges(g{k});
+            end
             disp(['Try to find ED data for graph ', num2str(key), '...']);
             try
                 load(filename); % try to load result of the ED to one given graph
@@ -817,12 +864,7 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                 disp(['ED data for graph ',num2str(key), ' found.']);
             catch
                 disp(['ED data for graph ', num2str(key), ' not found. Start to calculate ED.']);
-                % [timer_count, spectra, nsigmapermute, testn, nimatrix, domatrix] = ED_solver(g{k},t,u,n,m,dno,'density','doublon','fileio');
-                if strcmp(obs_string,'onsite_pair')
-                    dynamicVars = ED_solver(g{k},t,u,n,m,dno,'density','doublon','fileio');
-                else
-                    dynamicVars = ED_solver(g{k},t,u,n,m,dno,filename,obs_string);
-                end
+                dynamicVars = ED_solver(g{k},t,u,n,m,dno,filename,obs_string_arr{:});
                 % Dynamically assign variables to the workspace
                 varNames = fieldnames(dynamicVars);
                 for i = 1:length(varNames)
@@ -831,48 +873,55 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                 disp(['ED calculation for graph ', num2str(key), ' finished.']);
                 disp(timer_count);
             end
-            temp_list = [];
+            temp_list = zeros(numel(x),column_count);
+            
             for i = 1:numel(x)
                 deltamu =  - mu(i,:); 
-                if strcmp(obs_string, 'density')
-                    densityaccum = zeros(l,m);
-                    for spin_idx = 1:m
-                        rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
-                        densityaccum(:,spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
+                column_num = 0;
+                for j=1:numel(obs_string_arr)
+                    obs_string = obs_string_arr{j};
+                    if strcmp(obs_string, 'density')
+                        densityaccum = zeros(l,m);
+                        for spin_idx = 1:m
+                            rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
+                            densityaccum(:,spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
+                        end
+                        temp_list(i,column_num+1:column_num + m) = sum(densityaccum,1);
+                        column_num = column_num + m;
+                    elseif strcmp(obs_string, 'doublon')
+                        doaccum = zeros(1,uint8(m*(m-1)/2));
+                        for pair_idx = 1:uint8(m*(m-1)/2)
+                            pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
+                            doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
+                        end
+                        temp_list(i,column_num + 1: column_num + uint8(m*(m-1)/2)) = doaccum(:)';
+                        column_num = column_num + uint8(m*(m-1)/2);
+                    elseif strcmp(obs_string, 'triplon')
+                        triaccum = zeros(1,uint8(m*(m-1)*(m-2)/6));
+                        for tri_idx = 1:uint8(m*(m-1)*(m-2)/6)
+                            triplon_matrix = cellfun(@(x) x{tri_idx}, trimatrix, 'UniformOutput',false);
+                            triaccum = LDA_measure(spectra,deltamu, T, nsigmapermute, testn, triplon_matrix);
+                        end
+                        temp_list(i,column_num + 1:column_num + uint8(m*(m-1)*(m-2)/6)) = triaccum;
+                        column_num = column_num + uint8(m*(m-1)*(m-2)/6);
+                    elseif strcmp(obs_string, 'nearest_pair')
+                        nearest_pair_accum = zeros(1,uint8(m*(m-1)/2));
+                        for pair_idx = 1:uint8(m*(m-1)/2)
+                            if l>1
+                                ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
+                                nn_correlator_accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
+                                nearest_pair_accum(pair_idx) = sum(nn_correlator_accum(1:numEdge)- densityaccum(side1,rev_pair_idx(pair_idx,1)).*densityaccum(side2,rev_pair_idx(pair_idx,2)));
+                            end
+                        end
+                        temp_list(i, column_num + 1 : column_num + uint8(m*(m-1)/2) ) = nearest_pair_accum(:)';
                     end
-                    temp_list(end + 1,:) = sum(densityaccum,1)';
-                elseif strcmp(obs_string, 'doublon')
-                    doaccum = zeros(1,uint8(m*(m-1)/2));
-                    for pair_idx = 1:uint8(m*(m-1)/2)
-                        pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
-                        doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
-                    end
-                    temp_list(end + 1,:) = doaccum(:)';
-                elseif strcmp(obs_string, 'triplon')
-                    triaccum = zeros(1,uint8(m*(m-1)*(m-2)/6));
-                    for tri_idx = 1:uint8(m*(m-1)*(m-2)/6)
-                        triplon_matrix = cellfun(@(x) x{tri_idx}, trimatrix, 'UniformOutput',false);
-                        triaccum = LDA_measure(spectra,deltamu, T, nsigmapermute, testn, triplon_matrix);
-                    end
-                    temp_list(end+1,:) = triaccum;
-                elseif strcmp(obs_string, 'onsite_pair')
-                    onsite_pair_accum = zeros(1,uint8(m*(m-1)/2));
-                    for pair_idx = 1:uint8(m*(m-1)/2)
-                        rho_matrix1 = cellfun(@(x) x{rev_pair_idx(pair_idx,1)},nimatrix,'UniformOutput',false);
-                        rho1accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix1);
-                        rho_matrix2 = cellfun(@(x) x{rev_pair_idx(pair_idx,2)},nimatrix,'UniformOutput',false);
-                        rho2accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix2);
-                        pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
-                        doaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
-                        onsite_pair_accum(pair_idx) = doaccum - rho1accum * rho2accum;
-                    end
-                    temp_list(end + 1, : ) = onsite_pair_accum(:)';
                 end
             end
             obs_arr = obs_arr + coefficient(k)*temp_list; %nlce sum
             disp(join([key, 'l=', l, "t=", double(t), "u=", double(u), "m=", m, "D=", dno, 'ED measurement finish']));
         end
     end
+    % obs_arr = obs_arr./vecnorm(obs_arr);
 end
 
 function imbalance_sun_plots(T,Tidx,t,u,m,n,dno,obs,orderlist,save)
