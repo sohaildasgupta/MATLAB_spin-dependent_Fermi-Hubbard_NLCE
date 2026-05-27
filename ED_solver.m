@@ -4,7 +4,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
 %
 % SYNTAX :n
 %         [spectra, nsigmapermute] = ED_solver(graph, t, u, m)
-%         [spectra, nsigmapermute, eigenstates, basis] = ED_solver(graph, t, u, m)
 %         [spectra, nsigmapermute, testn, matrix] = ED_solver(graph, t, u, m, observables)   
 %          (saves the matrix elements to file.)
 %
@@ -20,8 +19,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
 %
 % OUTPUT ARGUMENTS :
 % spectra : energy spectrum of calculated system
-% eigenstates : wavefunction of corresponding energy level
-% basis : the basis used in the ED calculation
 % nsigmapermute : information of spin permutation
 % testn : total ptcl # of the sector, stored for calculating results changing mu & T without diagonalizing Hamiltonian again i.e.: thermodynamics calculation
 % matrix : state expectation values of every eigenstates, stored for calculating results changing mu & T without diagonalizing Hamiltonian again i.e.: thermodynamics calculation
@@ -136,24 +133,22 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
     
     spectra = {}; nsigmapermute = []; 
     
-    if numel(varargin)
-        testn = {};
-        if ni
-            nimatrix = {};
-        end
-        if do
-            domatrix = {};
-        end
-        if tri
-            trimatrix = {};
-        end
-        if nn
-            cnn = {};
-            ninj = {};
-        end
-    else
-        eigenstates = {}; basis = {};
+    
+    testn = {};
+    if ni
+        nimatrix = {};
     end
+    if do
+        domatrix = {};
+    end
+    if tri
+        trimatrix = {};
+    end
+    if nn
+        cnn = {};
+        ninj = {};
+    end
+    
     
     function varmem()
         %
@@ -165,8 +160,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         disp(join(["Memory used by variables [", varname{byteorder}, "] = [", bytecount, "] MBytes"]));
     end
     
-    basis = {};
-    eigenstates = {};
     permute_counter=0;
     for scidx = 1:nsigmalen
         % tic
@@ -174,8 +167,7 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         permuteno = 1; 
         spinconfig_len = size(spin_configs,1);
 
-        basis_sector = {};
-        eigenstates_sector = {};
+
         for spin_config_idx = 1:spinconfig_len
             permute_counter = permute_counter+1;
             spinnocofig = spin_configs(spin_config_idx, :);
@@ -242,7 +234,7 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
                 end
             end
            
-            
+           
             ham = tmatrix;
             clear('tmatrix');
             if ~fockdim
@@ -315,8 +307,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
             end
             spectra{end + 1} = nsigmaspectra;
             nsigmapermute(end + 1) = permuteno;
-            basis{end + 1} = basisvector;
-            eigenstates{end + 1} = nsigmaeigenstates;
             clear('nsigmaspectra','nsigmaeigenstates','tmatrix','basisvector',...
              'onsiteparticleno', 'originalonsitptclno', 'onsiteinteraction');            
         end   
@@ -329,9 +319,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
     output.timer_count = timer_count;
     output.spectra = spectra;
     output.nsigmapermute = nsigmapermute;
-    output.basis = basis;
-    output.eigenstates = eigenstates;
-    
     
     if numel(varargin)
         output.testn = testn;
@@ -348,7 +335,7 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
             output.ninj = ninj;
         end
     
-    save(filename, 'output', '-v7.3'); % save all result of the ED
+    save(filename, 'output', '-v7'); % save all result of the ED
     
     disp(join([key, "l=", l, "t=", double(t), "u=", double(u), "m=", m, "ED finish"]));
     end

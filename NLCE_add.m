@@ -9,21 +9,22 @@ trap_laser = 752e-9; % Frequency of the trapping laser (in nm)
 h = 6.62607015e-34; % Planck's constant in J-s
 
 % Maximum NLCE order (site-expansion)
-order_max = 7;
+order_max = 6;
 
 % Dictionary to map  the pair indices to single integer values.
 rev_pair_idx = [1 2; 1 3; 2 3];
 %% ED on all graphs up to order order_max.
 % Prevents read/write error later.
 orderlist=1:order_max;
-obs_list = {"density","doublon","triplon","nearest_pair"};
-item_nums = length(obs_list);
+
 
 for order=orderlist
     % Load the graph
     [g, ~] = NLCE_load(order);
     for k = 1:numel(g)
         % Generate unique key for g upto isomorphism.
+        obs_list = {"density","doublon","triplon","nearest_pair"};
+        item_nums = length(obs_list);
         key = key_gen(g{k});
         l = numnodes(g{k});
         numEdge = numedges(g{k});
