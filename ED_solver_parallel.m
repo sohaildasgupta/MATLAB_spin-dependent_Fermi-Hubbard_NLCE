@@ -33,6 +33,8 @@ function output = ED_solver_parallel(graph, t, u, m, filename ,varargin)
 %
     [ni, do, tri, nn] = deal(false);
     itemlist = {};
+    posi = [];
+    posj = [];
 
     timer_count = tic;
 

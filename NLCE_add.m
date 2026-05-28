@@ -11,8 +11,6 @@ h = 6.62607015e-34; % Planck's constant in J-s
 % Maximum NLCE order (site-expansion)
 order_max = 7;
 
-% Dictionary to map  the pair indices to single integer values.
-rev_pair_idx = [1 2; 1 3; 2 3];
 %% ED on all graphs up to order order_max.
 % Prevents read/write error later.
 orderlist=1:order_max;
@@ -81,7 +79,7 @@ for order=orderlist
             disp(['ED data for graph ', num2str(key), ' not found. Start to calculate ED.']);
 
             % ED function.
-            dynamicVars = ED_solver(g{k},t,u,m,filename,obs_list{:});
+            dynamicVars = ED_solver_parallel(g{k},t,u,m,filename,obs_list{:});
             % Dynamically assign variables to the workspace
             varNames = fieldnames(dynamicVars);
             for i = 1:length(varNames)
