@@ -1,6 +1,6 @@
 %% Parameters
 % Fermi-Hubbard parameters
-t = 1; u = [7.9, 13.7, 1.8]; % U12, U13, U23
+t = 1; u = [1.9, -2.4, -2.7]; % U12, U13, U23
 m = 3;
 
 % Experimental parameters
@@ -9,7 +9,7 @@ trap_laser = 752e-9; % Frequency of the trapping laser (in nm)
 h = 6.62607015e-34; % Planck's constant in J-s
 
 % Maximum NLCE order (site-expansion)
-order_max = 6;
+order_max = 7;
 
 % Dictionary to map  the pair indices to single integer values.
 rev_pair_idx = [1 2; 1 3; 2 3];
@@ -354,28 +354,28 @@ function varOutputs = NLCE_sum(t,u,m,observables,orderlist,muq,Tarray,save_files
                         nearest_pair_accum = zeros(1,m+uint8(m*(m-1)/2));
                         for spin_idx = 1:m
                             rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
-                            densityaccum(:,spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
+                            densityaccum(:,spin_idx) = thermal_average(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
                             % UNCOMMENT FOR SAME SPIN CORRELATIONS
                             % if l>1
                             %     ninj_matrix = cellfun(@(x) x{spin_idx+uint8(m*(m-1)/2)}, ninj,'UniformOutput',false);
-                            %     nn_correlator_accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
+                            %     nn_correlator_accum = thermal_average(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
                             %     nearest_pair_accum(uint8(m*(m-1)/2)+spin_idx) = sum(nn_correlator_accum(1:numEdge)- densityaccum(side1,spin_idx).*densityaccum(side2,spin_idx));
                             % end
                         end
                         doaccum = zeros(1,uint8(m*(m-1)/2));
                         for pair_idx = 1:uint8(m*(m-1)/2)
                             pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
-                            doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
+                            doaccum(pair_idx) = thermal_average(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
                             if l>1
                                 ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
-                                nn_correlator_accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
+                                nn_correlator_accum = thermal_average(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
                                 nearest_pair_accum(pair_idx) = sum(nn_correlator_accum(1:numEdge)- densityaccum(side1,rev_pair_idx(pair_idx,1)).*densityaccum(side2,rev_pair_idx(pair_idx,2)));
                             end
                         end
                         
                         for triplon_idx = 1:uint8(m*(m-1)*(m-2)/6)
                             triplon_matrix = cellfun(@(x) x{triplon_idx},trimatrix,'UniformOutput',false);
-                            triaccum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, triplon_matrix);
+                            triaccum = thermal_average(spectra, deltamu, T, nsigmapermute, testn, triplon_matrix);
                         end
                         alist(end + 1, :) = [sum(densityaccum,1) doaccum(:)' triaccum nearest_pair_accum(:)'];
                     end
@@ -543,7 +543,7 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                         densityaccum = zeros(l,m);
                         for spin_idx = 1:m
                             rho_matrix = cellfun(@(x) x{spin_idx},nimatrix,'UniformOutput',false);
-                            densityaccum(:,spin_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
+                            densityaccum(:,spin_idx) = thermal_average(spectra, deltamu, T, nsigmapermute, testn, rho_matrix);
                         end
                         temp_list(i,column_num+1:column_num + m) = sum(densityaccum,1);
                         column_num = column_num + m;
@@ -551,7 +551,7 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                         doaccum = zeros(1,uint8(m*(m-1)/2));
                         for pair_idx = 1:uint8(m*(m-1)/2)
                             pair_matrix = cellfun(@(x) x{pair_idx},domatrix,'UniformOutput',false);
-                            doaccum(pair_idx) = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
+                            doaccum(pair_idx) = thermal_average(spectra, deltamu, T, nsigmapermute, testn, pair_matrix);
                         end
                         temp_list(i,column_num + 1: column_num + uint8(m*(m-1)/2)) = doaccum(:)';
                         column_num = column_num + uint8(m*(m-1)/2);
@@ -559,7 +559,7 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                         triaccum = zeros(1,uint8(m*(m-1)*(m-2)/6));
                         for tri_idx = 1:uint8(m*(m-1)*(m-2)/6)
                             triplon_matrix = cellfun(@(x) x{tri_idx}, trimatrix, 'UniformOutput',false);
-                            triaccum = LDA_measure(spectra,deltamu, T, nsigmapermute, testn, triplon_matrix);
+                            triaccum = thermal_average(spectra,deltamu, T, nsigmapermute, testn, triplon_matrix);
                         end
                         temp_list(i,column_num + 1:column_num + uint8(m*(m-1)*(m-2)/6)) = triaccum;
                         column_num = column_num + uint8(m*(m-1)*(m-2)/6);
@@ -568,7 +568,7 @@ function obs_arr = obs_vs_r_fitting_function(x, fitParams, otherParams)
                         for pair_idx = 1:uint8(m*(m-1)/2)
                             if l>1
                                 ninj_matrix = cellfun(@(x) x{pair_idx}, ninj,'UniformOutput',false);
-                                nn_correlator_accum = LDA_measure(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
+                                nn_correlator_accum = thermal_average(spectra, deltamu, T, nsigmapermute, testn, ninj_matrix);
                                 nearest_pair_accum(pair_idx) = sum(nn_correlator_accum(1:numEdge)- densityaccum(side1,rev_pair_idx(pair_idx,1)).*densityaccum(side2,rev_pair_idx(pair_idx,2)));
                             end
                         end

@@ -1,6 +1,10 @@
 function output = ED_solver(graph, t, u, m, filename, varargin)
 %
-% ED_solver - solve ED of a given graph or lattice size with different parameters and arguments
+% ED_solver - solve ED of a given graph or lattice size with different parameters and arguments.
+% Number conservation symmetry is used to block diagonalize the Hamiltonian matrix, and the function 
+% can calculate the spectrum and observables for each block. The function can also automatically 
+% generate the graph for a given lattice size with periodic boundary condition. 
+% For parallelization, please use ED_solver_parallel.m instead, which has the same syntax and input/output arguments as this function.
 %
 % SYNTAX :n
 %         [spectra, nsigmapermute] = ED_solver(graph, t, u, m)
@@ -13,16 +17,18 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
 % m : # of spin flavor species
 %
 % observables : 'density', 'doublons', 'triplons', 'nearest_pair'
-% NOTE : 1. 'correlator' contains two inputs & two outputs
+% NOTE : 1. 'nearest_pair' contains two inputs & two outputs
 %            inputs : list of postion i & postion j
-%            outputs : state expectation values of cnn & ninj
+%            output : state expectation values of ninj (density-density correlation between site i and j between same and different spin flavors)
 %
 % OUTPUT ARGUMENTS :
 % spectra : energy spectrum of calculated system
 % nsigmapermute : information of spin permutation
 % testn : total ptcl # of the sector, stored for calculating results changing mu & T without diagonalizing Hamiltonian again i.e.: thermodynamics calculation
 % matrix : state expectation values of every eigenstates, stored for calculating results changing mu & T without diagonalizing Hamiltonian again i.e.: thermodynamics calculation
-
+%
+% NOTE : 1. The basis states are ordered by spin flavor first, then by site index. e.g.: if |ud> = C^dagger_1u C^dagger_2d|0>, then |du> = - C^dagger_2u C^dagger_1d|0>, so the SU(2) singlet |ud>-|du>=C^dagger_1u C^dagger_2d|0> + C^dagger_2u C^dagger_1d|0>. As a result, the SU(2) spin singlet has the same phase factor for both components.
+%
 % Use graph key for NLCE summation.
 % Authors : HT Wei and Sohail Dasgupta @ Rice
 %
@@ -31,15 +37,7 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
     
     timer_count = tic;
     
-    try
-        l = numnodes(graph);
-    catch
-        latticedims = graph;
-        spacedim = numel(latticedims);
-        period = latticedims;
-        graph = gridgraph(graph, 'pbc');
-        l = numnodes(graph);
-    end
+    l = numnodes(graph);
     
     if numel(varargin)
         input = varargin;
@@ -69,7 +67,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         end
     end
     
-    
     key = key_gen(graph);
     disp(join([key, "l=", l, "t=", double(t), "u=", double(u), "m=", m, "ED start"]));
     [side1, side2] = findedge(graph);
@@ -87,7 +84,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         nsigma{end + 1} = spin_permutations;
     end
 
-    
     nsigmalen = length(nsigma);
     sitenotuples = permn(logical(0:1), l);
     subbasisvectorlist = cell(1, l + 1);
@@ -131,9 +127,7 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         hfunction();
     end
     
-    spectra = {}; nsigmapermute = []; 
-    
-    
+    spectra = {}; nsigmapermute = [];     
     testn = {};
     if ni
         nimatrix = {};
@@ -145,10 +139,8 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         trimatrix = {};
     end
     if nn
-        cnn = {};
         ninj = {};
     end
-    
     
     function varmem()
         %
@@ -166,7 +158,6 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
         spin_configs = nsigma{nsigmalen + 1 - scidx};
         permuteno = 1; 
         spinconfig_len = size(spin_configs,1);
-
 
         for spin_config_idx = 1:spinconfig_len
             permute_counter = permute_counter+1;
@@ -340,29 +331,3 @@ function output = ED_solver(graph, t, u, m, filename, varargin)
     disp(join([key, "l=", l, "t=", double(t), "u=", double(u), "m=", m, "ED finish"]));
     end
 end
-
-function counter = sortcount(C)
-%
-% Count # of n.n. Fermion swaps when ordering state.
-%
-    counter = 0;
-
-    for index = 1:size(C, 3)
-        exchangelist = nonzeros(C(:, :, index))';
-        if length(exchangelist) > 1
-            swaped = true;
-            while swaped
-                swaped = false;
-                for idx = 1:length(exchangelist) - 1
-                    if exchangelist(idx) > exchangelist(idx + 1)
-                        exchangelist([idx idx+1]) = exchangelist([idx+1 idx]);
-                        counter = counter + 1;
-                        swaped = true;
-                    end
-                end
-            end
-        end
-    end
-end
-
-
