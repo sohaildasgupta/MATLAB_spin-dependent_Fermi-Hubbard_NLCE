@@ -1,0 +1,14 @@
+Flavor-selective pairing
+s=9.1(1)Er t=555.6 Hz Dataset 20240715-20240719
+Lattice confinement in horizontal direction = 2pi x 184 +- 5% Hz
+Atom number (n1,n2,n3) = (889,889,907) +- (52,45,43)
+Exp (U13 U12 U23)/t is (13.7 7.9 1.8) +- 10%
+
+HTE0 fit
+    T: 2.0264
+    mu1: 5.6657
+    mu2: 4.4431
+    mu3: 4.3353
+    U13: 13.7000
+    U12: 7.9000
+    U23: 1.8000

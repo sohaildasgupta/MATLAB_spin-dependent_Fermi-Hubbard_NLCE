@@ -1,6 +1,6 @@
 %% Parameters
 % Fermi-Hubbard parameters
-t = 1; u = [1.9, -2.4, -2.7]; % U12, U13, U23
+t = 1; u = [7.9, 13.7, 1.8]; % U12, U13, U23
 m = 3;
 
 % Experimental parameters
@@ -9,7 +9,7 @@ trap_laser = 752e-9; % Frequency of the trapping laser (in nm)
 h = 6.62607015e-34; % Planck's constant in J-s
 
 % Maximum NLCE order (site-expansion)
-order_max = 7;
+order_max = 5;
 
 %% ED on all graphs up to order order_max.
 % Prevents read/write error later.

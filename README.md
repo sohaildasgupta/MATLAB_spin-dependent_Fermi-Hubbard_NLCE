@@ -12,7 +12,7 @@ This work was supported in part by the NOTS cluster operated by Rice University'
 1. [What is this package?](#what-is-this-package)
 2. [Getting Started](#getting-started)
 3. [Usage](#usage)
-4. [Code structure](#code-structure)
+4. [Key functions](#key-functions)
 5. [License](#license)
 6. [Contributors](#contributors)
 
@@ -102,15 +102,57 @@ All the following files are stored under `../data/csv_files/N=3/` (*change in NL
 | `u=<U vals>_mus.csv` | Stores $\vec{\mu}(r) = \vec{\mu} - \frac{1}{2}m\omega^2r^2$, the chemical potentials away from the trap center with $m$ and $\omega$ being the mass of $^6\text{Li}$ and trap frequency respectively. |
 | `NLCE_order=<order val>_u=<U val>_<observable_name>_<flavor info>.csv` | Stores the values of the observable computed at the corresponding NLCE order and $U$. If the values are flavor-dependent then files are named with the flavor info. |
 
-# Code Structure
-## Key functions
-ED_solver : Exact diagonalization on a graph at $\vec{\mu}=(\mu_1,\mu_2,\mu_3)=(0,0,0)$. Outputs the matrix elements of the observables in the eigenbasis. 
+## Example use
+Fit the density vs $r$ experimental data in `sample_exp_data` to NLCE order 5.
 
-thermal_average : Given the matrix elements, performs the thermal average.
+- Open the NLCE_add.m and make sure the `Parameters` section (the first section)  has the following values - 
+```
+%% Parameters
+% Fermi-Hubbard parameters
+t = 1; u = [7.9, 13.7, 1.8]; % U12, U13, U23
+m = 3;
 
-NLCE_sum : Performs NLCE sum on themal observables up to a given order, for a given list of $T$ and $\vec{\mu}$.
+% Experimental parameters
+mfermion = 6*1.66054e-27; %mass of a Li6 atom in kg
+trap_laser = 752e-9; % Frequency of the trapping laser (in nm)
+h = 6.62607015e-34; % Planck's constant in J-s
 
-obs_vs_r_fitting_function : Using a given experimental data set of an observable \(Eg. density, doublon\) as a function of distance from the trap center $r$, finds the best fit values of $T$ and $\vec{\mu}(r=0)$ for a given order of NLCE.
+% Maximum NLCE order (site-expansion)
+order_max = 5;
+```
+- Open a command line from the local repository directory and exeute the following commands.
+```
+cp sample_exp_data/. ../.
+matlab -batch NLCE_add
+```
+- Check the best-fit values. 
+```
+vi ../data/csv_files/N=3/u=7p9,\ 13p7,\ 1p8_fit_vals.txt
+```
+It should read 
+```
+Atomic Limit Fit
+T/t = 2.1052 +/- 0.0664
+mu0/t = 5.3669 +/- 0.1169	4.2317 +/- 0.0993	4.3785 +/- 0.1001	
+
+
+
+NLCE order: 5
+T/t = 1.8000 +/- 0.0768
+mu0/t = 5.4797 +/- 0.1201	4.1914 +/- 0.1026	4.4203 +/- 0.1040	
+```
+
+# Key functions
+The following tables show the key functions that for the NLCE algorithm.
+
+| Functions | Description |
+| --------- | ----------- |
+| ED_solver | Exact diagonalization on a graph at $\vec{\mu}=(\mu_1,\mu_2,\mu_3)=(0,0,0)$. Outputs the matrix elements of the observables in the eigenbasis. |
+| thermal_average |  Given the matrix elements, performs the thermal average. |
+| NLCE_sum | Performs NLCE sum on themal observables up to a given order, for a given list of $T$ and $\vec{\mu}$. |
+| obs_vs_r_fitting_function | Using a given experimental data set of an observable \(Eg. density, doublon\) as a function of distance from the trap center $r$, finds the best fit values of $T$ and $\vec{\mu}(r=0)$ for a given order of NLCE. |  
+| celltuples | Helps generate basis states from spin configurations.|
+| key_gen | Generates unique key for every graph. |
 
 # License
 
