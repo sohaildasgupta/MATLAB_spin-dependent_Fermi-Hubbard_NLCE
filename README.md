@@ -23,6 +23,16 @@ The outputs are the best-fit value of the experimental temperature and the cente
 
 # Getting Started
 
+The following software and its corresponding toolboxes need to be installed prior to using this repository.
+
+## Dependencies
+ - `MATLAB` : R2025b or higher. 
+    - `Optimization Toolbox` : Version 25.2
+    - `Symbolic Math Toolbox` : Version 25.2 
+    - (Optional. Needed for `ED_solver_parallel` only) `Parallel Computing Toolbox`: Version 25.2
+
+Older versions have not been tested by the authors.
+
 # Usage
 
 ## Running the script
