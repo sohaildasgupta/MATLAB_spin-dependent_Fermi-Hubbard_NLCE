@@ -1,22 +1,27 @@
 # MATLAB_spin-dependent_Fermi-Hubbard
-Matlab package to compute thermodynamic observables of spin-dependent Fermi-Hubbard model using numerical linked-cluster expansion (NLCE).
+Matlab package to compute thermodynamic observables of spin-dependent Fermi-Hubbard model using numerical linked-cluster expansion (NLCE), and compare to experimental data.
 
 &copy; Sohail Dasgupta, Haotian Wei and Kaden R. A. Hazzard
 
-If you use this code, please cite Mongkolkiattichai et al. Quantum gas microscopy of three-flavor Hubbard systems, (In final stages of preparation for Science), 2026.
+If you use this code, please cite Mongkolkiattichai et al. *Quantum gas microscopy of three-flavor Hubbard systems*, (In final stages of preparation for Science), 2026.
 
 # Acknowledgements
 This work was supported in part by the NOTS cluster operated by Rice University's Center for Research Computing (CRC).
 
 # Contents
 1. [What is this package?](#what-is-this-package)
-2. [Usage](#usage)
-3. [Code structure](#code-structure)
-4. [License](#license)
-5. [Contributors](#contributors)
+2. [Getting Started](#getting-started)
+3. [Usage](#usage)
+4. [Code structure](#code-structure)
+5. [License](#license)
+6. [Contributors](#contributors)
 
 # What is this package?
-This package generates the values of the thermodynamic observables of the three-flavor Fermi-Hubbard model with spin-dependent interaction potentials for any temperatures and (spin-dependent) chemical potentials for up to a given order of the site-expansion numerical linked-cluster expansion (NLCE).
+This package generates the values of the thermodynamic observables such as particle density, density of pairs, and nearest-neighbor density-density correlation functions of the three-flavor spin-dependent Fermi-Hubbard model for any temperatures and (spin-dependent) chemical potentials up to a given order of the site-expansion numerical linked-cluster expansion (NLCE). 
+The inputs required are the optical lattice experimental data (observables as a function of distance from the optical trap center), NLCE graphs (provided as a cell of edges $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$) and the coefficients for up to the maximum order of interest, and the Fermi-Hubbard parameters. 
+The outputs are the best-fit value of the experimental temperature and the center-of-trap chemical potentials for every spin flavor, and the observable values as a function of the local chemical potential across a radial cut of the trap.
+
+# Getting Started
 
 # Usage
 
@@ -68,6 +73,11 @@ NLCE_sum : Performs NLCE sum on themal observables up to a given order, for a gi
 obs_vs_r_fitting_function : Using a given experimental data set of an observable \(Eg. density, doublon\) as a function of distance from the trap center $r$, finds the best fit values of $T$ and $\vec{\mu}(r=0)$ for a given order of NLCE.
 
 # License
+
+The code in this repository is licensed under the [MIT License](LICENSE).
+
+This repository contains code supporting a forthcoming research publication.
+
 
 # Contributors
 Sohail Dasgupta, Haotian Wei and Kaden Hazzard
