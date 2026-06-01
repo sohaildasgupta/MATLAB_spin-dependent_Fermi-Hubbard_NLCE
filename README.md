@@ -19,7 +19,7 @@ This work was supported in part by the NOTS cluster operated by Rice University'
 # What is this package?
 This package generates the values of the thermodynamic observables such as particle density, density of pairs, and nearest-neighbor density-density correlation functions of the three-flavor spin-dependent Fermi-Hubbard model for any temperatures and (spin-dependent) chemical potentials up to a given order of the site-expansion numerical linked-cluster expansion (NLCE). 
 
-The inputs required are the optical lattice experimental data (observables as a function of distance from the optical trap center), NLCE graphs (provided as a cell of edges $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$) and the coefficients for up to the maximum order of interest, and the Fermi-Hubbard parameters. 
+The inputs required are NLCE graphs (provided as a list of edges $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$) and the corresponding coefficients for up to the maximum order of interest, the Fermi-Hubbard parameters, and the optical lattice experimental data (observables as a function of distance from the trap center). 
 
 The outputs are the best-fit value of the experimental temperature and the center-of-trap chemical potentials for every spin flavor, and the observable values as a function of the local chemical potential across a radial cut of the trap.
 
@@ -68,18 +68,29 @@ Open the NLCE_add.m using MATLAB and run.
 | `../experimental_data_U13_<u13>_U12_<u12>_U23_<23>/Parameters.txt`| Experimental parameters-- $s$ in the units of the recoil energy, $t$ in Hz, Lattice confinement in horizontal direction Hz, Atom number, $U/t$-- and zeroth order high-T series fit values.|
 
 ### NLCE graph parameters
-NLCE data may be generated from the NLCE algorithm of [Tang et al., Comp. Phys. Comm., 18, 3 (2013)](https://www.sciencedirect.com/science/article/pii/S0010465512003414). 
+**NLCE data** can be generated using the algorithm of [Tang *et al.*, *Comp. Phys. Comm.* **183**, 3 (2013)](https://www.sciencedirect.com/science/article/pii/S0010465512003414).
 
-A thermodynamic property of a translatinally invariant graph, $\mathcal{L}$ can be written as $P(\mathcal{L})/N = \sum_{n=1}^\infty\sum_{c_n} l(c_n) W_P(c_n)$, where $N$ is the lattice-size and $l(c_n)$ is the number of ways the cluster $c_n$ of size $n$ can be embedded in the lattice upto translational invariance, and $W_P(c_n)$ is the weight of the cluster, defined iteratively as $W_P(c_n) = P(c_n) - \sum_{s\subset c_n}W_P(s)$.
+For a translationally invariant lattice $\mathcal{L}$, a thermodynamic property can be written as
+$$
+\frac{P(\mathcal{L})}{N} = \sum_{n=1}^\infty \sum_{c_n} l(c_n)\, W_P(c_n),
+$$
+where $N$ is the lattice size, $(c_n)$ denotes a connected cluster of order $(n)$ (number of sites in the site-expansion scheme used here), $l(c_n)$ is the number of embeddings on the lattice up to translations, and the cluster weight is defined recursively as
+$$
+W_P(c_n) = P(c_n) - \sum_{s \subset c_n} W_P(s).
+$$
 
-This is re-written as $P(\mathcal{L})/N = \sum_n \left(\sum_{c_n}k(c_n)P(c_n) + \sum_{m=1}^{n-1}\sum_{c_m} k^{(n)}(c_m) P(c_n)\right)$. Here, $P(c_n)$ is the property value on graph $c_n$ computed using exact digonaliztion, $k(c_n)$ is the number of ways to embed the graph $c_n$ in the lattice and $k^{(n)}(c_m)$ counts the contribution of $c_m$ as a subgraph to order $n$ graphs. 
+Equivalently, this can be reorganized as
+$$
+\frac{P(\mathcal{L})}{N} = \sum_n \left( \sum_{c_n} l(c_n)\, P(c_n) + \sum_{m=1}^{n-1} \sum_{c_m} l^{(n)}(c_m)\, P(c_m) \right),
+$$
+where $P(c_n)$ is computed (here via exact diagonalization), $l(c_n)$ counts embeddings including topological equivalence, and $l^{(n)}(c_m)$ accounts for subcluster contributions to order $n$.
 
-For this repository, data for **2D square lattice** provided. 
+This repository provides NLCE data for the **2D square lattice** using the site-expansion scheme.
 
 | parameter | Path| Description |
 | ------| ---- | ---------- |
-| graphs | `/NLCE/NLCE 2D graphs/graphsSimplified<n>.txt` | Stores the graphs of order $n$, $c_n$ and all their subgraphs $c_m$ for $m=1,\cdots,n-1$ and $k^n(c_m)\neq 0$ as a list of tuples $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$ representing edges between verices, $v_i, v_j$. |
-| coefficients | `/NLCE/NLCE 2D coefficients/coefficientsOfGraphs<n>.txt` |Stores the corresponding non-zero coefficients of the graphs, $k(c_n)$ and their subgraphs, $k^{(n)}(c_m)$ for $m=1, \cdots, n-1$).
+| graphs | `/NLCE/NLCE 2D graphs/graphsSimplified<n>.txt` | Stores the clusters of order $n$, $c_n$ and all their subclusters $c_m$ for $m=1,\cdots,n-1$ and $k^n(c_m)\neq 0$ as a list of edges $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$.|
+| coefficients | `/NLCE/NLCE 2D coefficients/coefficientsOfGraphs<n>.txt` | Stores the corresponding non-zero coefficients of the clusters, $l(c_n)$ and their subclusters, $l^{(n)}(c_m)$ for $m=1, \cdots, n-1$).
 
 ## Simulation parameters
 The simulation parameters can be modified in the `Parameters` section of `NLCE_add.m`
@@ -98,7 +109,7 @@ All the following files are stored under `../data/csv_files/N=3/` (*change in NL
 
 | Files | Description |
 | ----- | ----------- |
-|`u=<U values>_fit_vals.txt`  |  The atomic limit and order 7 fitted temperature and center-of-trap chemical potential - $(T, \vec{\mu})/t$ with their respective fit errors. |
+|`u=<U values>_fit_vals.txt`  |  The atomic limit and highest order fitted temperature and center-of-trap chemical potential - $(T, \vec{\mu})/t$ with their respective fit errors. |
 | `u=<U vals>_mus.csv` | Stores $\vec{\mu}(r) = \vec{\mu} - \frac{1}{2}m\omega^2r^2$, the chemical potentials away from the trap center with $m$ and $\omega$ being the mass of $^6\text{Li}$ and trap frequency respectively. |
 | `NLCE_order=<order val>_u=<U val>_<observable_name>_<flavor info>.csv` | Stores the values of the observable computed at the corresponding NLCE order and $U$. If the values are flavor-dependent then files are named with the flavor info. |
 
