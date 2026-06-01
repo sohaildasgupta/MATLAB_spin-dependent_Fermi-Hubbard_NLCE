@@ -1,4 +1,4 @@
-# MATLAB Spin-dependent Fermi-Hubbard
+# MATLAB_spin-dependent_Fermi-Hubbard
 Matlab package to compute thermodynamic observables of spin-dependent Fermi-Hubbard model using numerical linked-cluster expansion (NLCE).
 
 &copy; Sohail Dasgupta, Haotian Wei and Kaden R. A. Hazzard
