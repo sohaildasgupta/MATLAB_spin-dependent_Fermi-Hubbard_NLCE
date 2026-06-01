@@ -92,7 +92,7 @@ for order=orderlist
         disp(join(["Measured item :", obs_list{:}]));
     end      
 end
-    
+
 %% Read the Experimental data
 obs_string_arr = {'density','doublon','nearest_pair'}; 
 obs_string = 'density';
@@ -194,7 +194,10 @@ end
 fclose(fileID);
 
 %% mu-T grid of from the fitted values.
-fid = fopen('yourfile.txt','r');
+ustr = regexprep(num2str(u),'\s+', ', ');
+ustr = strrep(ustr, '.', 'p');
+fitparam_file = join(["../data/csv_files/N=3/", "u=", ustr  "_fit_vals.txt"],'');
+fid = fopen(fitparam_file,'r');
 
 % Skip first line
 fgetl(fid);
@@ -213,7 +216,9 @@ line = fgetl(fid);
 line = erase(line, 'mu0/t = ');
 
 % Extract all numbers (value, error, value, error, ...)
-nums = sscanf(line, '%f');
+nums = regexp(line, '[-+]?\d*\.?\d+', 'match');
+nums = str2double(nums);
+
 
 % Take only the central values (odd indices)
 mu0_vals = nums(1:2:end);
@@ -237,7 +242,7 @@ clear("mu_file","T_file");
 orderlist = 1:order_max;
 
 % Dictionary of observables to be computed
-obs_list = {"density","doublon","triplon","onsite_pair","nearest_pair"};
+obs_list = {"density","doublon","triplon","nearest_pair"};
 
 NLCE_sum(t,u,m,obs_list,orderlist,muq,Tarray,true); % 4D double [m,mu,T,order]
 % Keep the last entry to be true for saving data to file.
