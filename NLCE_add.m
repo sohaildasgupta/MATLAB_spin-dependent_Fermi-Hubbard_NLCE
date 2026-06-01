@@ -15,7 +15,6 @@ order_max = 7;
 % Prevents read/write error later.
 orderlist=1:order_max;
 
-
 for order=orderlist
     % Load the graph
     [g, ~] = NLCE_load(order);
@@ -232,10 +231,12 @@ end
 
 Tarray = [T_over_t];
 mu_file = join(['../data/csv_files/N=',num2str(m), '/u=', ustr, '_mus.csv'],'');
-T_file = join(['../data/csv_files/N=',num2str(m),'/u=', ustr, '_T.csv'],'');
 writematrix(muq,mu_file);
-writematrix(Tarray,T_file);
-clear("mu_file","T_file");
+clear("mu_file");
+% Uncomment the next three lines if you want to save the Tarray as well. 
+% T_file = join(['../data/csv_files/N=',num2str(m),'/u=', ustr, '_T.csv'],'');
+% writematrix(Tarray,T_file);
+% clear("T_file");
 
 %% Generate the NLCE sum for all observables up to order_max.
 
