@@ -71,18 +71,18 @@ Open the NLCE_add.m using MATLAB and run.
 **NLCE data** can be generated using the algorithm of [Tang *et al.*, *Comp. Phys. Comm.* **183**, 3 (2013)](https://www.sciencedirect.com/science/article/pii/S0010465512003414).
 
 For a translationally invariant lattice $\mathcal{L}$, a thermodynamic property can be written as
-\[
+$$
 \frac{P(\mathcal{L})}{N} = \sum_{n=1}^\infty \sum_{c_n} l(c_n)\, W_P(c_n),
-\]
+$$
 where $N$ is the lattice size, $(c_n)$ denotes a connected cluster of order $(n)$ (number of sites in the site-expansion scheme used here), $l(c_n)$ is the number of embeddings on the lattice up to translations, and the cluster weight is defined recursively as
-\[
+$$
 W_P(c_n) = P(c_n) - \sum_{s \subset c_n} W_P(s).
-\]
+$$
 
 Equivalently, this can be reorganized as
-\[
+$$
 \frac{P(\mathcal{L})}{N} = \sum_n \left( \sum_{c_n} l(c_n)\, P(c_n) + \sum_{m=1}^{n-1} \sum_{c_m} l^{(n)}(c_m)\, P(c_m) \right),
-\]
+$$
 where $P(c_n)$ is computed (here via exact diagonalization), $l(c_n)$ counts embeddings including topological equivalence, and $l^{(n)}(c_m)$ accounts for subcluster contributions to order $n$.
 
 This repository provides NLCE data for the **2D square lattice** using the site-expansion scheme.
