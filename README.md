@@ -95,8 +95,8 @@ This repository provides NLCE data for the **2D square lattice** using the site-
 
 | parameter | Path| Description |
 | ------| ---- | ---------- |
-| graphs | `/NLCE/NLCE 2D graphs/graphsSimplified<n>.txt` | Stores the clusters of order $n$, $c_n$ and all their subclusters $c_m$ for $m=1,\cdots,n-1$ and $k^n(c_m)\neq 0$ as a list of edges $`\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}`$.|
-| coefficients | `/NLCE/NLCE 2D coefficients/coefficientsOfGraphs<n>.txt` | Stores the corresponding non-zero coefficients of the clusters, $l(c_n)$ and their subclusters, $l^{(n)}(c_m)$ for $m=1, \cdots, n-1$.
+| graphs | `/NLCE/NLCE 2D graphs/graphsSimplified<n>.txt` | Stores the connected clusters $c_n$ of order $n$ and all their connected subclusters $c_m$ for $m=1,\cdots,n-1$ and $l^{(n)}(c_m)\neq 0$ as a list of edges $`\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}`$.|
+| coefficients | `/NLCE/NLCE 2D coefficients/coefficientsOfGraphs<n>.txt` | Stores the corresponding coefficients of the clusters, $l(c_n)$ and their subclusters, $l^{(n)}(c_m)$ for $m=1, \cdots, n-1$.
 
 ## Simulation parameters
 The simulation parameters can be modified in the `Parameters` section of `NLCE_add.m`
