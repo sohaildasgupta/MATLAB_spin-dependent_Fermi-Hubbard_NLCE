@@ -5,6 +5,8 @@ Matlab package to compute thermodynamic observables of spin-dependent Fermi-Hubb
 
 If you use this code, please cite Mongkolkiattichai et al. *Quantum gas microscopy of three-flavor Hubbard systems*, (In final stages of preparation for Science), 2026.
 
+DOI: 10.5281/zenodo.20510919
+
 # Acknowledgements
 This work was supported in part by the NOTS cluster operated by Rice University's Center for Research Computing (CRC).
 
