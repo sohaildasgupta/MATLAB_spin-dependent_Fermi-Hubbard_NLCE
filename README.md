@@ -101,7 +101,7 @@ This repository provides NLCE data for the **2D square lattice** using the site-
 The simulation parameters can be modified in the `Parameters` section of `NLCE_add.m`
 | Variables | Description |
 | --------- | ----------- |
-| t | Hubabrd $t$. This is set to $1$ to normalize other values to it. |
+| t | Hubbard $t$. This is set to $1$ to normalize other values to it. |
 | u | Spin-dependent Hubbard $U$. For three-flavors $U = [U_{12},U_{13}, U_{23}]$.| 
 | m | Number of spin flavors.| 
 | mfermion | The mass of the fermion used in the experiment in kg.|
