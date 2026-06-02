@@ -20,7 +20,7 @@ This work was supported in part by the NOTS cluster operated by Rice University'
 # What is this package?
 This package generates the values of the thermodynamic observables such as particle density, density of pairs, and nearest-neighbor density-density correlation functions of the three-flavor spin-dependent Fermi-Hubbard model for any temperatures and (spin-dependent) chemical potentials up to a given order of the site-expansion numerical linked-cluster expansion (NLCE). 
 
-The inputs required are NLCE graphs (provided as a list of edges $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$) and the corresponding coefficients for up to the maximum order of interest, the Fermi-Hubbard parameters, and the optical lattice experimental data (observables as a function of distance from the trap center). 
+The inputs required are NLCE graphs (provided as a list of edges $`\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}`$) and the corresponding coefficients for up to the maximum order of interest, the Fermi-Hubbard parameters, and the optical lattice experimental data (observables as a function of distance from the trap center). 
 
 The outputs are the best-fit value of the experimental temperature and the center-of-trap chemical potentials for every spin flavor, and the observable values as a function of the local chemical potential across a radial cut of the trap.
 
@@ -77,7 +77,7 @@ $$
 \frac{P(\mathcal{L})}{N} = \sum_{n=1}^\infty \sum_{c_n} l(c_n)\, W_P(c_n),
 $$
 
-where $N$ is the lattice size, $(c_n)$ denotes a connected cluster of order $(n)$ (number of sites in the site-expansion scheme used here), $l(c_n)$ is the number of embeddings on the lattice up to translations, and the cluster weight is defined recursively as
+where $N$ is the lattice size, $c_n$ denotes a connected cluster of order $n$ (number of sites in the site-expansion scheme used here), $l(c_n)$ is the number of embeddings on the lattice up to translations, and the cluster weight is defined recursively as
 
 $$
 W_P(c_n) = P(c_n) - \sum_{s \subset c_n} W_P(s).
@@ -95,8 +95,8 @@ This repository provides NLCE data for the **2D square lattice** using the site-
 
 | parameter | Path| Description |
 | ------| ---- | ---------- |
-| graphs | `/NLCE/NLCE 2D graphs/graphsSimplified<n>.txt` | Stores the clusters of order $n$, $c_n$ and all their subclusters $c_m$ for $m=1,\cdots,n-1$ and $k^n(c_m)\neq 0$ as a list of edges $\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}$.|
-| coefficients | `/NLCE/NLCE 2D coefficients/coefficientsOfGraphs<n>.txt` | Stores the corresponding non-zero coefficients of the clusters, $l(c_n)$ and their subclusters, $l^{(n)}(c_m)$ for $m=1, \cdots, n-1$).
+| graphs | `/NLCE/NLCE 2D graphs/graphsSimplified<n>.txt` | Stores the clusters of order $n$, $c_n$ and all their subclusters $c_m$ for $m=1,\cdots,n-1$ and $k^n(c_m)\neq 0$ as a list of edges $`\{\{v_1,v_2\},\{v_3,v_4\},\cdots\}`$.|
+| coefficients | `/NLCE/NLCE 2D coefficients/coefficientsOfGraphs<n>.txt` | Stores the corresponding non-zero coefficients of the clusters, $l(c_n)$ and their subclusters, $l^{(n)}(c_m)$ for $m=1, \cdots, n-1$.
 
 ## Simulation parameters
 The simulation parameters can be modified in the `Parameters` section of `NLCE_add.m`
